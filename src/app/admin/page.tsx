@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Button, Input, Modal, TopNav, Toast, PageHeader, DeleteBookModal } from '@/components/shared';
-import { IconUserPlus, IconList, IconClock, IconMail, IconSearch, IconTrash, IconFolder, IconChevLeft, IconChevRight, IconUpload, IconShield, IconLogout, IconCheck, IconClose, IconAlert } from '@/components/icons';
+import { IconUserPlus, IconList, IconClock, IconMail, IconSearch, IconTrash, IconFolder, IconChevLeft, IconChevRight, IconUpload, IconShield, IconLogout, IconCheck, IconClose, IconAlert, IconBook } from '@/components/icons';
 import { INITIAL_BOOKS, fmtSize, fmtDate, fmtRelative, DEMO_ACCOUNTS } from '@/components/data';
 
 const QUOTA_CAP_KB = 256 * 1024;
@@ -26,7 +26,9 @@ export default function AdminPage() {
     let name = '';
     if (tokenMatch) {
       try {
-        const payload = JSON.parse(atob(tokenMatch[1].split('.')[1]));
+        const base64Url = tokenMatch[1].split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const payload = JSON.parse(atob(base64));
         email = payload.email || '';
         name = payload.user_metadata?.name || email.split('@')[0];
       } catch (e) {}

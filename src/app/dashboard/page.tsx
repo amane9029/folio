@@ -24,7 +24,9 @@ export default function DashboardPage() {
     let id = '';
     if (tokenMatch) {
       try {
-        const payload = JSON.parse(atob(tokenMatch[1].split('.')[1]));
+        const base64Url = tokenMatch[1].split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const payload = JSON.parse(atob(base64));
         email = payload.email || '';
         name = payload.user_metadata?.name || email.split('@')[0];
         id = payload.sub;
@@ -172,29 +174,94 @@ function UserDashboard({ user, books, setBooks, pushToast }){
           }
 
           if (opfPath) {
-            const opfStr = await zip.file(opfPath)?.async('text');
-            if (opfStr) {
-              const tMatch = opfStr.match(/<dc:title[^>]*>([^<]+)<\/dc:title>/i);
-              if (tMatch) titleStr = tMatch[1].trim();
+            const opfText = await zip.file(opfPath)?.async('text');
+            if (opfText) {
+              const parser = new DOMParser();
+              const opf = parser.parseFromString(opfText, "application/xml");
+              const opfDir = opfPath.substring(0, opfPath.lastIndexOf('/') + 1);
 
-              const metaMatch = opfStr.match(/<meta[^>]+name="cover"[^>]+content="([^"]+)"/i) || opfStr.match(/<meta[^>]+content="([^"]+)"[^>]+name="cover"/i);
-              let coverId = metaMatch ? metaMatch[1] : null;
-
-              if (!coverId) {
-                 const itemMatch = opfStr.match(/<item[^>]+properties="cover-image"[^>]+id="([^"]+)"/i);
-                 if (itemMatch) coverId = itemMatch[1];
+              // Title extraction
+              const titleEl = opf.querySelector('title') || opf.getElementsByTagNameNS('*', 'title')[0];
+              if (titleEl && titleEl.textContent) {
+                titleStr = titleEl.textContent.trim();
+              } else {
+                const tMatch = opfText.match(/<dc:title[^>]*>([^<]+)<\/dc:title>/i);
+                if (tMatch) titleStr = tMatch[1].trim();
               }
 
-              if (coverId) {
-                const itemRe = new RegExp(`<item[^>]+id="${coverId}"[^>]+href="([^"]+)"`, 'i');
-                const iMatch = opfStr.match(itemRe);
-                if (iMatch) {
-                  let href = iMatch[1];
-                  const opfDir = opfPath.includes('/') ? opfPath.substring(0, opfPath.lastIndexOf('/')) + '/' : '';
-                  href = opfDir + href;
-                  coverBlob = await zip.file(href)?.async('blob');
+              // Extract cover logic
+              const extractCover = async () => {
+                // 1. Try properties="cover-image"
+                const coverItem = opf.querySelector('item[properties="cover-image"]');
+                if (coverItem) {
+                  const href = coverItem.getAttribute("href");
+                  const file = zip.file(opfDir + href) || zip.file(opfDir + decodeURIComponent(href));
+                  if (file) return await file.async("blob");
                 }
-              }
+
+                // 2. Try <meta name="cover">
+                const coverMeta = opf.querySelector('meta[name="cover"]');
+                if (coverMeta) {
+                  const coverId = coverMeta.getAttribute("content");
+                  const item = opf.querySelector(`item[id="${coverId}"]`);
+                  if (item) {
+                    const href = item.getAttribute("href");
+                    const file = zip.file(opfDir + href) || zip.file(opfDir + decodeURIComponent(href));
+                    if (file) return await file.async("blob");
+                  }
+                }
+
+                // 3. Try any image item whose id or href contains "cover"
+                const allItems = Array.from(opf.querySelectorAll('item'));
+                const coverLikeItem = allItems.find(i => 
+                   (i.getAttribute('id')?.toLowerCase().includes('cover') || i.getAttribute('href')?.toLowerCase().includes('cover')) &&
+                   i.getAttribute('media-type')?.startsWith('image/')
+                );
+                if (coverLikeItem) {
+                   const href = coverLikeItem.getAttribute("href");
+                   const file = zip.file(opfDir + href) || zip.file(opfDir + decodeURIComponent(href));
+                   if (file) return await file.async("blob");
+                }
+
+                // 4. Try cover.xhtml — use regex instead of DOMParser
+                const coverXhtml = zip.file(opfDir + "Text/cover.xhtml") 
+                                || zip.file(opfDir + "text/cover.xhtml")
+                                || zip.file("OEBPS/Text/cover.xhtml");
+                if (coverXhtml) {
+                  const xhtmlText = await coverXhtml.async("text");
+                  
+                  // Use regex to extract href from xlink:href or href or src
+                  const hrefMatch = xhtmlText.match(/xlink:href="([^"]+\.(jpg|jpeg|png|webp))"/i)
+                                 || xhtmlText.match(/href="([^"]+\.(jpg|jpeg|png|webp))"/i)
+                                 || xhtmlText.match(/src="([^"]+\.(jpg|jpeg|png|webp))"/i);
+                  
+                  if (hrefMatch) {
+                    const rawHref = hrefMatch[1]; // e.g. "../Images/embed0032_HD.jpg"
+                    const filename = rawHref.split("/").pop();
+                    const resolved = opfDir + "Images/" + filename;
+                    
+                    let file = zip.file(resolved);
+                    if (!file) {
+                      // fallback: search all zip files for this filename
+                      const match = Object.keys(zip.files).find(f => f.endsWith(filename));
+                      if (match) file = zip.file(match);
+                    }
+                    if (file) return await file.async("blob");
+                  }
+                }
+
+                // 5. Final fallback: first jpg/png in Images folder
+                const imageFiles = Object.keys(zip.files).filter(f => 
+                  f.match(/\.(jpg|jpeg|png)$/i) && f.toLowerCase().includes("images")
+                );
+                if (imageFiles.length > 0) {
+                  return await zip.file(imageFiles[0]).async("blob");
+                }
+
+                return null;
+              };
+
+              coverBlob = await extractCover();
             }
           }
         } catch (e) {

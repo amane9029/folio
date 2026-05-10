@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
-import { IconChevDown, IconShield, IconLogout, IconCheck, IconTrash } from './icons';
+import { IconChevDown, IconShield, IconLogout, IconCheck, IconTrash, IconBook } from './icons';
 
 export function Button({ variant = 'primary', accent = 'user', size = 'md', className = '', children, ...rest }: any){
   const accentBg = accent === 'admin' ? 'bg-admin' : 'bg-user';
@@ -193,8 +193,14 @@ export function DeleteBookModal({ book, onClose, onConfirm, accent = 'user' }: a
   return (
     <Modal open={!!book} onClose={onClose} maxWidth="max-w-[440px]">
       <div className="flex items-start gap-4">
-        <div className="w-[68px] h-[100px] rounded-md overflow-hidden bg-ink/10 shrink-0 shadow-card">
-          <img src={book.cover} alt="" className="w-full h-full object-cover"/>
+        <div className="w-[68px] h-[100px] rounded-md overflow-hidden bg-ink/10 shrink-0 shadow-card relative">
+          {book.cover ? (
+            <img src={book.cover} alt="" className="w-full h-full object-cover"/>
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center bg-secondary/20 text-ink/40">
+              <IconBook size={24}/>
+            </div>
+          )}
         </div>
         <div className="min-w-0 flex-1">
           <div className="text-[11px] uppercase tracking-[0.18em] text-crimson font-medium mb-1">Permanent delete</div>
