@@ -9,6 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@insforge/sdk": "^1.2.7",
+    "jszip": "^3.10.1",
     "next": "16.2.6",
     "react": "19.2.4",
     "react-dom": "19.2.4"

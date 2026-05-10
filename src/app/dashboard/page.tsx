@@ -4,37 +4,68 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useRouter, usePathname } from 'next/navigation';
 import { Button, Input, Modal, TopNav, Toast, PageHeader, DeleteBookModal } from '@/components/shared';
 import { IconSearch, IconFilter, IconUpload, IconBook, IconFolder, IconCheck, IconArrow, IconTrash, IconSparkle, IconLoader, IconAlert, IconClose, IconTranslate, IconChevLeft, IconChevRight } from '@/components/icons';
-import { INITIAL_BOOKS, SEED_BOOKS, makeBook, hash, fmtSize, fmtDate, fmtRelative, needsTranslation, DEMO_ACCOUNTS } from '@/components/data';
+import { fmtSize, fmtDate, needsTranslation } from '@/components/data';
+import JSZip from 'jszip';
 
 export default function DashboardPage() {
   const router = useRouter();
   const pathname = usePathname();
-  const [user, setUser] = useState(DEMO_ACCOUNTS.find(a => a.role === 'user')!);
-  const [books, setBooks] = useState(INITIAL_BOOKS);
+  const [user, setUser] = useState({ role: 'user', email: '...', name: 'Loading' });
+  const [books, setBooks] = useState([]);
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
-    const match = document.cookie.match(/role=([^;]+)/);
-    if (match && match[1] === 'admin') {
-      setUser(DEMO_ACCOUNTS.find(a => a.role === 'admin')!);
+    const roleMatch = document.cookie.match(/role=([^;]+)/);
+    const role = roleMatch ? roleMatch[1] : 'user';
+
+    const tokenMatch = document.cookie.match(/token=([^;]+)/);
+    let email = '';
+    let name = '';
+    let id = '';
+    if (tokenMatch) {
+      try {
+        const payload = JSON.parse(atob(tokenMatch[1].split('.')[1]));
+        email = payload.email || '';
+        name = payload.user_metadata?.name || email.split('@')[0];
+        id = payload.sub;
+      } catch (e) {}
     }
+
+    setUser({ id, role, email, name });
+
+    fetch('/api/books')
+      .then(r => r.json())
+      .then(data => {
+        if (!data.error) {
+          const mapped = data.map(b => ({
+            id: b.id,
+            title: b.title,
+            subfolder: b.subfolder || 'Unsorted',
+            cover: b.cover_url || '',
+            fileSizeKb: b.file_size_kb,
+            uploadedAt: b.uploaded_at,
+            uploadedBy: b.uploaded_by,
+          }));
+          setBooks(mapped);
+        }
+      });
   }, []);
 
   const pushToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 2400);
   };
-  const pushEvent = (kind: string, actor: string, target: string, meta = {}) => {
-  };
+
   const onLogout = () => {
     document.cookie = "role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
     router.push('/');
   };
 
   return (
     <>
       <TopNav role={user.role} currentPath={pathname} user={user} onNavigate={(p: string) => router.push(p)} onLogout={onLogout} />
-      <UserDashboard user={user} books={books} setBooks={setBooks} pushToast={pushToast} pushEvent={pushEvent} />
+      <UserDashboard user={user} books={books} setBooks={setBooks} pushToast={pushToast} />
       <Toast toast={toast} />
     </>
   );
@@ -46,21 +77,20 @@ declare global {
   }
 }
 
-// User Dashboard — "My Desk". Cover grid, search/filter, FAB upload, delete modal.
+// User Dashboard — "My Desk"
 
-function UserDashboard({ user, books, setBooks, pushToast, pushEvent }){
+function UserDashboard({ user, books, setBooks, pushToast }){
   const [query, setQuery] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
   const [activeFolder, setActiveFolder] = useState('All');
   const [sort, setSort] = useState('recent');
-  const [toDelete, setToDelete] = useState(null); // book object
-  const [activeBook, setActiveBook] = useState(null); // book opened in drawer
-  const [uploads, setUploads] = useState(null);   // { items: [{...}], visible }
+  const [toDelete, setToDelete] = useState(null); 
+  const [activeBook, setActiveBook] = useState(null); 
+  const [uploads, setUploads] = useState(null);   
   const [chooserOpen, setChooserOpen] = useState(false);
   const fabRef = useRef(null);
   const filterRef = useRef(null);
 
-  // close filter on outside click
   useEffect(() => {
     if (!filterOpen) return;
     const onDoc = (e) => { if (filterRef.current && !filterRef.current.contains(e.target)) setFilterOpen(false); };
@@ -69,9 +99,8 @@ function UserDashboard({ user, books, setBooks, pushToast, pushEvent }){
   }, [filterOpen]);
 
   // Role isolation: users only see books they uploaded; admins see everything.
-  // (In production this is server-filtered by uploaded_by from the JWT claim.)
   const myBooks = useMemo(
-    () => user.role === 'admin' ? books : books.filter(b => b.uploadedBy === user.email),
+    () => user.role === 'admin' ? books : books.filter(b => b.uploadedBy === user.id),
     [books, user]
   );
 
@@ -82,7 +111,6 @@ function UserDashboard({ user, books, setBooks, pushToast, pushEvent }){
       const q = query.toLowerCase();
       list = list.filter(b =>
         b.title.toLowerCase().includes(q) ||
-        b.author.toLowerCase().includes(q) ||
         b.subfolder.toLowerCase().includes(q)
       );
     }
@@ -97,55 +125,121 @@ function UserDashboard({ user, books, setBooks, pushToast, pushEvent }){
     return ['All', ...Array.from(set).sort()];
   }, [myBooks]);
 
-  // -------- Upload simulation --------
-  const startMockUpload = (mode = 'folder') => {
-    // Pick fresh seeds from SEED_BOOKS the user doesn't already have.
-    const owned = new Set(books.map(b => b.title));
-    const candidates = SEED_BOOKS.filter(s => !owned.has(s.title));
-    const pool = candidates.length >= 5 ? candidates : SEED_BOOKS;
-    const count = mode === 'file' ? 1 : 4 + Math.floor(Math.random() * 3);
-    const picks = [];
-    const seen = new Set();
-    while (picks.length < count){
-      const c = pool.length > 0 ? pool[Math.floor(Math.random() * pool.length)] : { title: 'Mock Upload ' + Math.random().toString(36).slice(2, 6), author: 'Unknown', subfolder: 'Uploads' };
-      const key = c.title;
-      if (seen.has(key) && pool.length > 0) continue;
-      seen.add(key);
-      picks.push(c);
+  // -------- Real Upload via API --------
+  const startUpload = async (mode = 'folder') => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.epub';
+    if (mode === 'folder') {
+      input.webkitdirectory = true;
+      input.directory = true;
+      input.multiple = true;
     }
 
-    const items = picks.map((p, i) => ({
-      id: 'u_' + Date.now() + '_' + i,
-      title: p.title,
-      author: p.author,
-      subfolder: p.subfolder,
-      state: 'queued',
-    }));
-    setUploads({ items, visible: true });
+    input.onchange = async (e) => {
+      const files = Array.from(e.target.files).filter(f => f.name.toLowerCase().endsWith('.epub'));
+      if (!files.length) return;
 
-    // Walk each item through extracting -> uploading -> done with staggered timing.
-    items.forEach((item, idx) => {
-      const baseDelay = 200 + idx * 380;
-      setTimeout(() => updateUpload(item.id, { state: 'extracting' }), baseDelay);
-      setTimeout(() => updateUpload(item.id, { state: 'uploading' }), baseDelay + 600);
+      const newUploads = files.map((f, i) => ({
+        id: 'u_' + Date.now() + '_' + i,
+        title: f.name,
+        file: f,
+        state: 'queued'
+      }));
+
+      setUploads({ items: newUploads, visible: true });
+
+      for (const item of newUploads) {
+        updateUpload(item.id, { state: 'extracting' });
+        let coverBlob = null;
+        let titleStr = item.file.name.replace(/\.epub$/i, '');
+        let subfolderStr = 'Unsorted';
+
+        if (mode === 'folder') {
+            const parts = item.file.webkitRelativePath.split('/');
+            if (parts.length > 1) {
+                subfolderStr = parts[0];
+            }
+        }
+
+        try {
+          const zip = await JSZip.loadAsync(item.file);
+          let opfPath = '';
+          const containerXml = await zip.file('META-INF/container.xml')?.async('text');
+          if (containerXml) {
+            const match = containerXml.match(/full-path="([^"]+)"/);
+            if (match) opfPath = match[1];
+          }
+
+          if (opfPath) {
+            const opfStr = await zip.file(opfPath)?.async('text');
+            if (opfStr) {
+              const tMatch = opfStr.match(/<dc:title[^>]*>([^<]+)<\/dc:title>/i);
+              if (tMatch) titleStr = tMatch[1].trim();
+
+              const metaMatch = opfStr.match(/<meta[^>]+name="cover"[^>]+content="([^"]+)"/i) || opfStr.match(/<meta[^>]+content="([^"]+)"[^>]+name="cover"/i);
+              let coverId = metaMatch ? metaMatch[1] : null;
+
+              if (!coverId) {
+                 const itemMatch = opfStr.match(/<item[^>]+properties="cover-image"[^>]+id="([^"]+)"/i);
+                 if (itemMatch) coverId = itemMatch[1];
+              }
+
+              if (coverId) {
+                const itemRe = new RegExp(`<item[^>]+id="${coverId}"[^>]+href="([^"]+)"`, 'i');
+                const iMatch = opfStr.match(itemRe);
+                if (iMatch) {
+                  let href = iMatch[1];
+                  const opfDir = opfPath.includes('/') ? opfPath.substring(0, opfPath.lastIndexOf('/')) + '/' : '';
+                  href = opfDir + href;
+                  coverBlob = await zip.file(href)?.async('blob');
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.error("Extraction error:", e);
+        }
+
+        updateUpload(item.id, { state: 'uploading', title: titleStr });
+
+        const formData = new FormData();
+        formData.append('title', titleStr);
+        formData.append('subfolder', subfolderStr);
+        formData.append('file_size_kb', Math.round(item.file.size / 1024).toString());
+        if (coverBlob) {
+            formData.append('cover', coverBlob, 'cover.jpg');
+        }
+
+        try {
+            const res = await fetch('/api/upload', { method: 'POST', body: formData });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+
+            const mapped = {
+                id: data.id,
+                title: data.title,
+                subfolder: data.subfolder || 'Unsorted',
+                cover: data.cover_url || '',
+                fileSizeKb: data.file_size_kb,
+                uploadedAt: data.uploaded_at,
+                uploadedBy: data.uploaded_by,
+            };
+
+            setBooks(prev => [mapped, ...prev]);
+            updateUpload(item.id, { state: 'done' });
+        } catch (err) {
+            console.error("Upload error:", err);
+            updateUpload(item.id, { state: 'error' });
+        }
+      }
+
       setTimeout(() => {
-        updateUpload(item.id, { state: 'done' });
-        // Add the book to the library, tagged to the current user
-        const seed = { title: item.title, author: item.author, subfolder: item.subfolder };
-        const newBook = makeBook(seed, books.length + idx, user.email, 0);
-        setBooks(prev => {
-          if (prev.some(b => b.title === seed.title)) return prev; // dedupe
-          return [newBook, ...prev];
-        });
-        pushEvent && pushEvent('upload', user.email, seed.title, { folder: seed.subfolder, size: newBook.fileSizeKb });
-      }, baseDelay + 1300);
-    });
+        setUploads(prev => prev ? { ...prev, visible: false } : prev);
+      }, 3000);
+    };
 
-    // Auto-collapse panel after all done
-    const totalTime = 200 + (items.length - 1) * 380 + 1300 + 1400;
-    setTimeout(() => {
-      setUploads(prev => prev ? { ...prev, visible: false } : prev);
-    }, totalTime);
+    input.click();
   };
 
   const updateUpload = (id, patch) => {
@@ -164,36 +258,38 @@ Input title may contain Japanese, Chinese, Korean, Cyrillic, Arabic, etc.
 Keys: language (BCP-47 like "ja","zh","ko","ru","ar"), romaji (transliteration in Latin script), english (idiomatic English title).
 If the input is already English, return {"language":"en","romaji":"<title>","english":"<title>"}.
 
-Title: ${JSON.stringify(book.title)}
-Author: ${JSON.stringify(book.author)}`);
+Title: ${JSON.stringify(book.title)}`);
       const m = String(raw).match(/\{[\s\S]*\}/);
       const parsed = m ? JSON.parse(m[0]) : null;
       if (!parsed) throw new Error('parse');
       setBooks(prev => prev.map(b => b.id === book.id
         ? { ...b, _translateState:'done', translation: { language: parsed.language, romaji: parsed.romaji, english: parsed.english } }
         : b));
-      pushEvent && pushEvent('translate', user.email, book.title, { language: parsed.language });
     } catch (e){
       setBooks(prev => prev.map(b => b.id === book.id ? { ...b, _translateState:'error' } : b));
     }
-  }, [setBooks, user, pushEvent]);
+  }, [setBooks]);
 
   const activeBookFresh = activeBook ? books.find(b => b.id === activeBook.id) || activeBook : null;
-
 
   const onFabClick = () => setChooserOpen(true);
   const handleChoose = (mode) => {
     setChooserOpen(false);
-    setTimeout(() => startMockUpload(mode), 180);
+    setTimeout(() => startUpload(mode), 180);
   };
 
-  // -------- Delete --------
-  const confirmDelete = (book) => {
-    setBooks(prev => prev.filter(b => b.id !== book.id));
-    setToDelete(null);
-    setActiveBook(null);
-    pushEvent && pushEvent('delete', user.email, book.title, { folder: book.subfolder });
-    pushToast(`"${book.title}" removed`);
+  // -------- Real Delete via API --------
+  const confirmDelete = async (book) => {
+    try {
+      const res = await fetch(`/api/books/${book.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Delete failed');
+      setBooks(prev => prev.filter(b => b.id !== book.id));
+      setToDelete(null);
+      setActiveBook(null);
+      pushToast(`"${book.title}" removed`);
+    } catch (err) {
+      alert("Failed to delete book");
+    }
   };
 
   const isEmpty = myBooks.length === 0;
@@ -210,7 +306,7 @@ Author: ${JSON.stringify(book.author)}`);
             <div className="flex items-center gap-2">
               <Input
                 icon={<IconSearch size={16}/>}
-                placeholder="Search title, author, folder…"
+                placeholder="Search title, folder…"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 wrapperClass="w-[260px]"
@@ -353,29 +449,24 @@ function UploadChooserModal({ open, onClose, onChoose }){
         </button>
       </div>
       <p className="text-[13.5px] text-ink/70 leading-relaxed max-w-md">
-        Folio reads each .epub for cover art, title, and metadata. Folders are imported recursively — the folder name becomes the subfolder tag.
+        Folio reads each .epub for cover art, title, and metadata. Folders are imported recursively.
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-5">
         <ChooserCard
           icon={<IconFolder size={28}/>}
           title="Folder of EPUBs"
-          description="Pick a directory — every .epub inside is imported and grouped by folder."
+          description="Pick a directory — every .epub inside is imported."
           meta="Recommended for batch imports"
           onClick={() => onChoose('folder')}
         />
         <ChooserCard
           icon={<IconBook size={28}/>}
           title="Single .epub file"
-          description="Pick one book file. You’ll be able to set its folder before it lands on your desk."
+          description="Pick one book file to upload."
           meta="Best for one-off additions"
           onClick={() => onChoose('file')}
         />
-      </div>
-
-      <div className="mt-5 pt-4 border-t border-ink/15 flex items-center gap-2 text-[12px] text-ink/65">
-        <IconUpload size={13}/>
-        <span>Tip: you can also drag &amp; drop files anywhere on the dashboard.</span>
       </div>
     </Modal>
   );
@@ -398,8 +489,6 @@ function ChooserCard({ icon, title, description, meta, onClick }){
     </button>
   );
 }
-
-
 
 // ---------- Cover card ----------
 function CoverCard({ book, onOpen, onDelete }){
@@ -428,8 +517,14 @@ function CoverCard({ book, onOpen, onDelete }){
           <IconSparkle size={10}/> {(tr.language || '').toUpperCase()}
         </div>
       )}
-      <div className="aspect-[2/3] w-full overflow-hidden bg-ink/10">
-        <img src={book.cover} alt="" className="w-full h-full object-cover" loading="lazy"/>
+      <div className="aspect-[2/3] w-full overflow-hidden bg-ink/10 relative">
+        {book.cover ? (
+          <img src={book.cover} alt="" className="w-full h-full object-cover" loading="lazy"/>
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center bg-secondary/20 text-ink/40">
+            <IconBook size={32}/>
+          </div>
+        )}
       </div>
       <div className="px-4 pt-3 pb-4">
         <div className="font-serif text-[16px] text-ink truncate-1 leading-snug" title={book.title}>{book.title}</div>
@@ -449,7 +544,6 @@ function CoverCard({ book, onOpen, onDelete }){
 function EmptyState({ onUpload }){
   return (
     <div className="rounded-2xl border-2 border-dashed border-secondary/70 bg-surface/40 py-20 px-6 text-center">
-      {/* Line-art illustration */}
       <svg width="120" height="90" viewBox="0 0 120 90" className="mx-auto mb-5" fill="none" stroke="#AA968A" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
         <rect x="14" y="20" width="92" height="60" rx="6"/>
         <path d="M14 30h92"/>
@@ -473,15 +567,17 @@ function UploadPanel({ uploads, onClose }){
   if (!uploads || !uploads.visible) return null;
   const items = uploads.items;
   const done = items.filter(i => i.state === 'done').length;
+  const errs = items.filter(i => i.state === 'error').length;
   const total = items.length;
-  const pct = Math.round((done / total) * 100);
-  const allDone = done === total;
+  const pct = Math.round(((done+errs) / total) * 100);
+  const allDone = (done + errs) === total;
 
   const labelFor = (s) => ({
     queued:     'Queued',
     extracting: 'Extracting cover…',
     uploading:  'Uploading…',
     done:       'Done',
+    error:      'Error'
   }[s] || s);
 
   return (
@@ -507,6 +603,8 @@ function UploadPanel({ uploads, onClose }){
               <span className="h-5 w-5 grid place-items-center shrink-0">
                 {it.state === 'done'
                   ? <span className="h-5 w-5 rounded-full bg-user/15 text-user grid place-items-center"><IconCheck size={12}/></span>
+                  : it.state === 'error'
+                  ? <span className="h-5 w-5 rounded-full bg-crimson/15 text-crimson grid place-items-center"><IconAlert size={12}/></span>
                   : it.state === 'queued'
                     ? <span className="h-2 w-2 rounded-full bg-ink/30"/>
                     : <span className="text-user"><IconLoader size={14}/></span>}
@@ -521,8 +619,6 @@ function UploadPanel({ uploads, onClose }){
   );
 }
 
-
-
 // ---------- Book detail drawer ----------
 function BookDetailDrawer({ book, currentUser, onClose, onDelete, onTranslate }){
   useEffect(() => {
@@ -534,21 +630,19 @@ function BookDetailDrawer({ book, currentUser, onClose, onDelete, onTranslate })
 
   if (!book) return null;
 
-  const canDelete = currentUser.role === 'admin' || book.uploadedBy === currentUser.email;
-  // Mock chapters
+  const canDelete = currentUser.role === 'admin' || book.uploadedBy === currentUser.id;
+  
   const chapters = [
     'Front Matter', 'Chapter 1 — A Beginning', 'Chapter 2 — Drift',
     'Chapter 3 — The Long Walk', 'Chapter 4 — Letters', 'Chapter 5 — Inventories',
     'Chapter 6 — Returns', 'Acknowledgements',
   ];
-  // Deterministic faux progress per book
-  const progress = (hash(book.id) % 92);
+  const progress = 0;
 
   return (
     <div className="fixed inset-0 z-50">
       <div className="absolute inset-0 backdrop fade-in" onClick={onClose}/>
       <aside className="absolute right-0 top-0 bottom-0 w-full sm:w-[480px] bg-bg shadow-lift drawer-in flex flex-col" data-accent={currentUser.role === 'admin' ? 'admin' : 'user'}>
-        {/* Header */}
         <div className="flex items-center justify-between px-5 h-14 border-b border-ink/15">
           <div className="text-[11px] uppercase tracking-[0.18em] text-ink/65">Book details</div>
           <button onClick={onClose} className="h-8 w-8 grid place-items-center rounded-md text-ink/65 hover:bg-secondary/40 transition" aria-label="Close">
@@ -556,28 +650,30 @@ function BookDetailDrawer({ book, currentUser, onClose, onDelete, onTranslate })
           </button>
         </div>
 
-        {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto">
           <div className="px-6 pt-6 pb-4 flex gap-5">
-            <div className="w-[120px] h-[180px] rounded-md overflow-hidden bg-ink/10 shrink-0 shadow-card">
-              <img src={book.cover} alt="" className="w-full h-full object-cover"/>
+            <div className="w-[120px] h-[180px] rounded-md overflow-hidden bg-ink/10 shrink-0 shadow-card relative">
+              {book.cover ? (
+                <img src={book.cover} alt="" className="w-full h-full object-cover"/>
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center bg-secondary/20 text-ink/40">
+                  <IconBook size={32}/>
+                </div>
+              )}
             </div>
             <div className="min-w-0 flex-1">
               <div className="font-serif text-[24px] text-ink leading-[1.15]">{book.title}</div>
               {book.translation?.english && book.translation.english !== book.title && (
                 <div className="text-[13px] text-ink/65 italic mt-0.5">“{book.translation.english}”</div>
               )}
-              <div className="text-[13px] text-ink/70 mt-1">{book.author}</div>
               <div className="mt-3 inline-flex items-center gap-1.5 text-[12px] text-ink/80 bg-surface rounded-md px-2 py-1">
                 <IconFolder size={12}/> {book.subfolder}
               </div>
             </div>
           </div>
 
-          {/* Folio Translate */}
           <TranslateBlock book={book} onTranslate={onTranslate}/>
 
-          {/* Progress */}
           <div className="px-6 pb-5">
             <div className="flex items-center justify-between text-[12px] text-ink/70 mb-1.5">
               <span>Reading progress</span>
@@ -588,15 +684,12 @@ function BookDetailDrawer({ book, currentUser, onClose, onDelete, onTranslate })
             </div>
           </div>
 
-          {/* Metadata grid */}
           <div className="px-6 pb-5 grid grid-cols-2 gap-x-5 gap-y-3 text-[13px]">
             <Meta label="File size"   value={fmtSize(book.fileSizeKb)} />
             <Meta label="Uploaded"    value={fmtDate(book.uploadedAt)} />
-            <Meta label="Uploaded by" value={book.uploadedBy} mono />
             <Meta label="Format"      value="EPUB 3.0" />
           </div>
 
-          {/* Chapters */}
           <div className="px-6 pb-6">
             <div className="text-[11px] uppercase tracking-[0.16em] text-ink/65 mb-2">Table of contents</div>
             <ol className="bg-surface rounded-lg overflow-hidden divide-y divide-ink/10">
@@ -610,7 +703,6 @@ function BookDetailDrawer({ book, currentUser, onClose, onDelete, onTranslate })
           </div>
         </div>
 
-        {/* Footer actions */}
         <div className="border-t border-ink/15 px-5 py-3 flex items-center gap-2">
           <Button className="flex-1" accent={currentUser.role === 'admin' ? 'admin' : 'user'}>
             <IconBook size={15}/> Open in reader
@@ -635,14 +727,13 @@ function Meta({ label, value, mono }){
   );
 }
 
-// ---------- Folio Translate (free-tier LLM, mocked w/ window.claude) ----------
 function TranslateBlock({ book, onTranslate }){
   const t = book.translation;
   const state = book._translateState;
   const need = needsTranslation(book.title);
 
   if (!need && !t){
-    return null; // already English — no UI clutter
+    return null; 
   }
 
   return (
@@ -695,5 +786,3 @@ function TranslateField({ label, value, mono }){
     </div>
   );
 }
-
-

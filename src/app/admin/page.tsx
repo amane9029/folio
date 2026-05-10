@@ -11,18 +11,45 @@ const QUOTA_CAP_KB = 256 * 1024;
 export default function AdminPage() {
   const router = useRouter();
   const pathname = usePathname();
-  const [user, setUser] = useState(DEMO_ACCOUNTS.find(a => a.role === 'admin')!);
-  const [books, setBooks] = useState(INITIAL_BOOKS);
+  const [user, setUser] = useState({ role: 'admin', email: '...', name: 'Loading' });
+  const [books, setBooks] = useState([]);
   const [events, setEvents] = useState<any[]>([]);
   const [invites, setInvites] = useState<any[]>([]);
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
-    // Just a simple mock
-    const match = document.cookie.match(/role=([^;]+)/);
-    if (match && match[1] === 'user') {
-      setUser(DEMO_ACCOUNTS.find(a => a.role === 'user')!);
+    const roleMatch = document.cookie.match(/role=([^;]+)/);
+    const role = roleMatch ? roleMatch[1] : 'admin';
+
+    const tokenMatch = document.cookie.match(/token=([^;]+)/);
+    let email = '';
+    let name = '';
+    if (tokenMatch) {
+      try {
+        const payload = JSON.parse(atob(tokenMatch[1].split('.')[1]));
+        email = payload.email || '';
+        name = payload.user_metadata?.name || email.split('@')[0];
+      } catch (e) {}
     }
+
+    setUser({ role, email, name });
+
+    fetch('/api/books')
+      .then(r => r.json())
+      .then(data => {
+        if (!data.error) {
+          const mapped = data.map(b => ({
+            id: b.id,
+            title: b.title,
+            subfolder: b.subfolder || 'Unsorted',
+            cover: b.cover_url || '',
+            fileSizeKb: b.file_size_kb,
+            uploadedAt: b.uploaded_at,
+            uploadedBy: b.uploaded_by,
+          }));
+          setBooks(mapped);
+        }
+      });
   }, []);
 
   const pushToast = (msg: string) => {
@@ -38,6 +65,7 @@ export default function AdminPage() {
   };
   const onLogout = () => {
     document.cookie = "role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
     router.push('/');
   };
 
@@ -70,19 +98,32 @@ function AdminPanel({ books, setBooks, events, invites, setInvites, quotaCapKb, 
     };
   }, [books]);
 
-  const confirmDelete = (b) => {
-    setBooks(prev => prev.filter(x => x.id !== b.id));
-    setToDelete(null);
-    pushEvent && pushEvent('delete', currentUser.email, b.title, { folder: b.subfolder });
-    pushToast(`Removed "${b.title}" from library`);
+  const confirmDelete = async (b) => {
+    try {
+      const res = await fetch(`/api/books/${b.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Delete failed');
+      setBooks(prev => prev.filter(x => x.id !== b.id));
+      setToDelete(null);
+      pushEvent && pushEvent('delete', currentUser.email, b.title, { folder: b.subfolder });
+      pushToast(`Removed "${b.title}" from library`);
+    } catch (e) {
+      alert("Failed to delete book");
+    }
   };
 
-  const confirmBulkDelete = (list) => {
-    const ids = new Set(list.map(b => b.id));
-    setBooks(prev => prev.filter(x => !ids.has(x.id)));
-    list.forEach(b => pushEvent && pushEvent('delete', currentUser.email, b.title, { folder: b.subfolder }));
-    setBulkTargets(null);
-    pushToast(`Removed ${list.length} ${list.length === 1 ? 'book' : 'books'} from library`);
+  const confirmBulkDelete = async (list) => {
+    try {
+      for (const b of list) {
+        await fetch(`/api/books/${b.id}`, { method: 'DELETE' });
+      }
+      const ids = new Set(list.map(b => b.id));
+      setBooks(prev => prev.filter(x => !ids.has(x.id)));
+      list.forEach(b => pushEvent && pushEvent('delete', currentUser.email, b.title, { folder: b.subfolder }));
+      setBulkTargets(null);
+      pushToast(`Removed ${list.length} ${list.length === 1 ? 'book' : 'books'} from library`);
+    } catch (e) {
+      alert("Failed to delete some books");
+    }
   };
 
   const sendInvite = (email, role) => {
@@ -334,8 +375,14 @@ function LibraryTab({ books, onDelete, onBulkDelete }){
                   <Checkbox checked={isSel} onChange={() => toggleOne(b.id)} aria-label={`Select ${b.title}`}/>
                 </td>
                 <td className="py-2 pr-3">
-                  <div className="w-10 h-[58px] rounded-[3px] overflow-hidden bg-ink/10 shadow-sm">
-                    <img src={b.cover} alt="" className="w-full h-full object-cover"/>
+                  <div className="w-10 h-[58px] rounded-[3px] overflow-hidden bg-ink/10 shadow-sm relative">
+                    {b.cover ? (
+                      <img src={b.cover} alt="" className="w-full h-full object-cover"/>
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center bg-secondary/20 text-ink/40">
+                        <IconBook size={20}/>
+                      </div>
+                    )}
                   </div>
                 </td>
                 <td className="py-2 pr-3">

@@ -1,15 +1,21 @@
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 
-export function proxy(request: NextRequest) {
+export function middleware(request: NextRequest) {
   const role = request.cookies.get('role')?.value;
+  const token = request.cookies.get('token')?.value;
 
-  if (request.nextUrl.pathname.startsWith('/dashboard') || request.nextUrl.pathname.startsWith('/admin')) {
-    if (!role) {
+  // Protect /dashboard — must have auth cookie
+  if (request.nextUrl.pathname.startsWith('/dashboard')) {
+    if (!token) {
       return NextResponse.redirect(new URL('/', request.url));
     }
-    if (request.nextUrl.pathname.startsWith('/admin') && role !== 'admin') {
-      return NextResponse.redirect(new URL('/dashboard', request.url));
+  }
+
+  // Protect /admin — must be admin
+  if (request.nextUrl.pathname.startsWith('/admin')) {
+    if (!token || role !== 'admin') {
+      return NextResponse.redirect(new URL('/', request.url));
     }
   }
 
@@ -18,4 +24,4 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   matcher: ['/dashboard/:path*', '/admin/:path*'],
-}
+};

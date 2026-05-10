@@ -2,8 +2,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Input } from '@/components/shared';
-import { IconAlert, IconLoader, IconShield } from '@/components/icons';
-import { DEMO_ACCOUNTS } from '@/components/data';
+import { IconAlert, IconLoader } from '@/components/icons';
 
 export default function LoginPage(){
   const router = useRouter();
@@ -12,28 +11,35 @@ export default function LoginPage(){
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const submit = (e?: React.FormEvent) => {
+  const submit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     setError('');
     setBusy(true);
-    setTimeout(() => {
-      const acct = DEMO_ACCOUNTS.find((a: any) => a.email === email.trim().toLowerCase() && a.password === password);
-      if (!acct){
-        setError('Those credentials don’t match an invited account.');
+
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || 'Those credentials don\u2019t match an invited account.');
         setBusy(false);
         return;
       }
-      document.cookie = `role=${acct.role}; path=/`;
-      router.push(acct.role === 'admin' ? '/admin' : '/dashboard');
-    }, 450);
-  };
 
-  const fillDemo = (which: string) => {
-    const a = DEMO_ACCOUNTS.find((x: any) => x.role === which);
-    if(a) {
-      setEmail(a.email);
-      setPassword(a.password);
-      setError('');
+      // Redirect based on role (cookie is set by the API response)
+      if (data.role === 'admin') {
+        router.push('/admin');
+      } else {
+        router.push('/dashboard');
+      }
+    } catch {
+      setError('Network error. Please try again.');
+      setBusy(false);
     }
   };
 
