@@ -43,3 +43,6 @@ next-env.d.ts
 # AI tooling
 CLAUDE.md
 AGENTS.md
+
+# media files
+*.epub
