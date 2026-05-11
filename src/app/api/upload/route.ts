@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { insforge, insforgeAdmin } from '@/lib/insforge';
+import { createClient } from '@insforge/sdk';
 
 export async function POST(request: NextRequest) {
   try {
@@ -30,6 +30,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid token: ' + e.message }, { status: 401 });
     }
 
+    // Create a user-scoped client so RLS (auth.uid()) evaluates correctly
+    const userClient = createClient({
+      baseUrl: process.env.NEXT_PUBLIC_INSFORGE_URL!,
+      anonKey: process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY!,
+    });
+    userClient.setAccessToken(token);
+
     const formData = await request.formData();
     const cover = formData.get('cover') as File | null;
     const title = formData.get('title') as string;
@@ -50,7 +57,7 @@ export async function POST(request: NextRequest) {
         const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
         // SDK expects File | Blob — pass the cover File directly
-        const { data: uploadData, error: uploadError } = await insforge.storage
+        const { data: uploadData, error: uploadError } = await userClient.storage
           .from('covers')
           .upload(path, cover);
 
@@ -121,7 +128,7 @@ Title: ${JSON.stringify(title)}`
     const newBookId = crypto.randomUUID();
 
     // Insert book record without .select() to avoid RLS read policy evaluation
-    const { error: dbError } = await insforgeAdmin.database
+    const { error: dbError } = await userClient.database
       .from('books')
       .insert([{
         id: newBookId,

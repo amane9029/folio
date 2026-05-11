@@ -15,7 +15,7 @@ export function Button({ variant = 'primary', accent = 'user', size = 'md', clas
 
   let v = '';
   if (variant === 'primary'){
-    v = `${accentBg} text-white hover:brightness-110`;
+    v = `${accentBg} text-ink-invert hover:brightness-110`;
   } else if (variant === 'secondary'){
     v = `border ${accentBorder} ${accentText} bg-transparent hover:bg-secondary/20`;
   } else if (variant === 'ghost'){
@@ -64,7 +64,7 @@ export function Modal({ open, onClose, children, maxWidth = 'max-w-md' }: any){
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in">
-      <div className="absolute inset-0 bg-ink/20 backdrop-blur-sm cursor-pointer" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm cursor-pointer" onClick={onClose} />
       <div className={`relative ${maxWidth} w-[92%] bg-surface rounded-2xl shadow-lift animate-modal-in p-6`}>
         {children}
       </div>
@@ -90,7 +90,7 @@ export function AvatarMenu({ user, onLogout, accent = 'user' }: any){
         aria-haspopup="menu"
         aria-expanded={open}
       >
-        <div className={`h-9 w-9 rounded-full bg-secondary text-white grid place-items-center font-medium text-[13px] ring-2 ring-transparent group-hover:${ringColor} transition`}>
+        <div className={`h-9 w-9 rounded-full bg-secondary text-ink-invert grid place-items-center font-medium text-[13px] ring-2 ring-transparent group-hover:${ringColor} transition`}>
           {user.initials}
         </div>
         <IconChevDown size={16} className={`chev text-ink/70 transition-transform ${open ? 'rotate-180' : ''}`}/>
@@ -127,9 +127,9 @@ export function TopNav({ role, currentPath, user, onNavigate, onLogout }: any){
       onClick={() => onNavigate(href)}
       className="relative px-1.5 h-16 text-[14px] font-medium tracking-tight transition-colors duration-200 cursor-pointer"
       data-accent={accent}
-      style={{ color: active ? (accent==='admin' ? '#6E6A6F' : '#6C698D') : '#6E6A6FAA' }}
-      onMouseEnter={(e: any)=>{ if(!active) e.currentTarget.style.color = '#6E6A6F'; }}
-      onMouseLeave={(e: any)=>{ if(!active) e.currentTarget.style.color = '#6E6A6FAA'; }}
+      style={{ color: active ? '#ffffff' : '#ffffff99' }}
+      onMouseEnter={(e: any)=>{ if(!active) e.currentTarget.style.color = '#ffffff'; }}
+      onMouseLeave={(e: any)=>{ if(!active) e.currentTarget.style.color = '#ffffff99'; }}
     >
       {label}
       {active && <span className={`absolute left-0 right-0 -bottom-px h-0.5 ${accentUnderline}`}/>}
@@ -140,7 +140,7 @@ export function TopNav({ role, currentPath, user, onNavigate, onLogout }: any){
     <header className="sticky top-0 z-30 bg-bg/85 backdrop-blur border-b border-ink/10" data-accent={accent}>
       <div className="max-w-[1400px] mx-auto h-16 px-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <img src="/main_logo.svg" alt="Folio" className="h-9 w-9" />
+          <img src="/main_logo.svg" alt="Folio" className="h-9 w-9 filter invert opacity-90" />
           <span className="font-serif font-bold text-[20px] tracking-tight text-ink select-none">Folio</span>
           <span className="hidden sm:inline-block text-[11px] uppercase tracking-[0.18em] text-ink/55 border-l border-ink/20 pl-3">
             {role === 'admin' ? 'Admin Console' : 'Library'}
@@ -166,7 +166,7 @@ export function TopNav({ role, currentPath, user, onNavigate, onLogout }: any){
 export function Toast({ toast }: any){
   if (!toast) return null;
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] bg-ink text-white text-sm px-4 py-2.5 rounded-lg shadow-lift animate-modal-in flex items-center gap-2">
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] bg-white text-ink-invert text-sm px-4 py-2.5 rounded-lg shadow-lift animate-modal-in flex items-center gap-2">
       <IconCheck size={16}/> {toast}
     </div>
   );

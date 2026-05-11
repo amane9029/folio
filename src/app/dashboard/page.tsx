@@ -35,6 +35,8 @@ export default async function DashboardPage() {
       uploadedBy: b.uploaded_by,
       translation: b.translation,
     }));
+  } else if (error) {
+    console.error('Failed to fetch books in DashboardPage:', error);
   }
 
   return <DashboardClient initialBooks={mappedBooks} />;

@@ -76,7 +76,17 @@ export default function AdminPage() {
       kind, actor, target, meta,
     }, ...prev]);
   };
-  const onLogout = () => {
+  const onLogout = async () => {
+    try {
+      const { createClient } = await import('@insforge/sdk');
+      const insforge = createClient({
+        baseUrl: process.env.NEXT_PUBLIC_INSFORGE_URL!,
+        anonKey: process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY!,
+      });
+      await insforge.auth.signOut();
+    } catch (e) {
+      console.error('Logout error', e);
+    }
     document.cookie = "role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
     document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
     router.push('/');
@@ -217,7 +227,7 @@ function Tab({ active, onClick, icon, label, count }){
     >
       {icon} {label}
       {count !== undefined && (
-        <span className={`text-[11px] px-1.5 rounded-full tabular-nums ${active ? 'bg-admin text-white' : 'bg-ink/10 text-ink/70'}`}>{count}</span>
+        <span className={`text-[11px] px-1.5 rounded-full tabular-nums ${active ? 'bg-admin text-ink-invert' : 'bg-ink/10 text-ink/70'}`}>{count}</span>
       )}
       {active && <span className="absolute left-0 right-0 -bottom-px h-0.5 bg-admin"/>}
     </button>
@@ -382,11 +392,11 @@ function LibraryTab({ books, onDelete, onBulkDelete }){
               </td></tr>
             ) : slice.map((b, i) => {
               const isSel = selected.has(b.id);
-              const baseBg = isSel ? 'rgba(110,106,111,.10)' : (i % 2 === 0 ? 'transparent' : 'rgba(236,234,232,.7)');
+              const baseBg = isSel ? 'rgba(255,255,255,.08)' : (i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,.03)');
               return (
               <tr key={b.id} className="transition-colors"
                 style={{ background: baseBg }}
-                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(201,197,194,.5)'}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,.08)'}
                 onMouseLeave={(e) => e.currentTarget.style.background = baseBg}>
                 <td className="py-2 pl-5 pr-2">
                   <Checkbox checked={isSel} onChange={() => toggleOne(b.id)} aria-label={`Select ${b.title}`}/>
@@ -477,7 +487,7 @@ function AuditLogTab({ events }){
         {filters.map(f => (
           <button key={f.id} onClick={() => setFilter(f.id)}
             className={`h-8 px-3 rounded-full text-[12.5px] font-medium transition whitespace-nowrap
-              ${filter === f.id ? 'bg-admin text-white' : 'text-ink/75 hover:bg-bg'}`}>
+              ${filter === f.id ? 'bg-ink text-ink-invert' : 'text-ink/75 hover:bg-bg'}`}>
             {f.label}
           </button>
         ))}
@@ -594,7 +604,7 @@ function MiniStat({ label, value, tone = 'ok' }){
 
 function InviteRow({ inv, onRevoke, onResend }){
   const statusCfg = {
-    pending:  { label: 'Pending',  cls: 'bg-ink/85 text-white' },
+    pending:  { label: 'Pending',  cls: 'bg-white text-ink-invert' },
     accepted: { label: 'Accepted', cls: 'bg-bg text-ink border border-ink/20' },
     expired:  { label: 'Expired',  cls: 'bg-bg text-ink/55 border border-ink/15' },
     revoked:  { label: 'Revoked',  cls: 'bg-crimson/15 text-crimson' },
@@ -737,7 +747,7 @@ function RolePick({ active, onClick, title, sub }){
         ${active ? 'border-admin bg-bg' : 'border-ink/15 bg-bg/50 hover:border-ink/40'}`}>
       <div className="flex items-center gap-2 text-[13px] font-medium text-ink">
         <span className={`h-3.5 w-3.5 rounded-full border ${active ? 'border-admin bg-admin' : 'border-ink/40'} grid place-items-center`}>
-          {active && <span className="h-1.5 w-1.5 rounded-full bg-white"/>}
+          {active && <span className="h-1.5 w-1.5 rounded-full bg-ink-invert"/>}
         </span>
         {title}
       </div>
@@ -780,7 +790,7 @@ function PageBtn({ children, active, onClick, disabled }){
   return (
     <button onClick={onClick} disabled={disabled}
       className={`min-w-[28px] h-8 px-2 rounded-md text-[12.5px] font-medium transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer
-        ${active ? 'bg-admin text-white' : 'text-ink hover:bg-secondary/30'}`}>
+        ${active ? 'bg-white text-ink-invert' : 'text-ink hover:bg-secondary/30'}`}>
       {children}
     </button>
   );
@@ -816,11 +826,11 @@ function Checkbox({ checked, indeterminate, onChange, ...rest }){
       {...rest}
     >
       {state === 'on' && (
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#050505" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="5 13 10 18 19 8"/>
         </svg>
       )}
-      {state === 'mixed' && <span className="block h-[2px] w-[8px] bg-white rounded-sm"/>}
+      {state === 'mixed' && <span className="block h-[2px] w-[8px] bg-ink-invert rounded-sm"/>}
     </span>
   );
 }

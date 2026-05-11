@@ -41,7 +41,17 @@ export default function DashboardClient({ initialBooks }: { initialBooks: any[] 
     setTimeout(() => setToast(null), 2400);
   };
 
-  const onLogout = () => {
+  const onLogout = async () => {
+    try {
+      const { createClient } = await import('@insforge/sdk');
+      const insforge = createClient({
+        baseUrl: process.env.NEXT_PUBLIC_INSFORGE_URL!,
+        anonKey: process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY!,
+      });
+      await insforge.auth.signOut();
+    } catch (e) {
+      console.error('Logout error', e);
+    }
     document.cookie = "role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
     document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
     router.push('/');
@@ -83,11 +93,8 @@ function UserDashboard({ user, books, setBooks, pushToast }){
     return () => document.removeEventListener('mousedown', onDoc);
   }, [filterOpen]);
 
-  // Role isolation: users only see books they uploaded; admins see everything.
-  const myBooks = useMemo(
-    () => user.role === 'admin' ? books : books.filter(b => b.uploadedBy === user.id),
-    [books, user]
-  );
+  // RLS handles data isolation at the DB level, no need for client-side filtering
+  const myBooks = useMemo(() => books, [books]);
 
   const visible = useMemo(() => {
     let list = myBooks.slice();
@@ -344,81 +351,95 @@ function UserDashboard({ user, books, setBooks, pushToast }){
   const isEmpty = myBooks.length === 0;
 
   return (
-    <div className="min-h-screen bg-bg" data-accent="user">
+    <div className="min-h-screen bg-[#050505]" data-accent="user">
       <main className="max-w-[1280px] mx-auto px-6 pt-10 pb-32">
-        <PageHeader
-          title="My Desk"
-          subtitle={user.role === 'admin'
-            ? 'Recently added titles across the entire library.'
-            : 'Books you\u2019ve uploaded \u2014 only you and admins can see these.'}
-          right={
-            <div className="flex items-center gap-2">
-              <Input
-                icon={<IconSearch size={16}/>}
-                placeholder="Search title, folder…"
+
+        {/* ─── Header: My Collection ─── */}
+        <div className="flex items-end justify-between flex-wrap gap-4 mb-10">
+          <div>
+            <h1 className="font-serif text-[42px] md:text-[52px] leading-[1.05] font-semibold text-white tracking-tight">My Collection</h1>
+            <div className="mt-2 text-[15px] text-white/50 flex items-center gap-3">
+              <span>{myBooks.length} {myBooks.length === 1 ? 'book' : 'books'}</span>
+              <span className="w-1 h-1 rounded-full bg-white/20" />
+              <span>{folders.length - 1} {folders.length - 1 === 1 ? 'folder' : 'folders'}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {/* Search */}
+            <div className="relative">
+              <IconSearch size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
+              <input
+                type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                wrapperClass="w-[260px]"
-                accent="user"
+                placeholder="Search…"
+                className="h-11 w-[200px] rounded-xl bg-white/[0.04] border border-white/10 pl-9 pr-3 text-[14px] text-white placeholder-white/30 focus:border-white/25 transition outline-none"
               />
-              <Button onClick={onFabClick} accent="user">
-                <IconUpload size={16}/> Upload
-              </Button>
-              <div className="relative" ref={filterRef}>
-                <Button variant="soft" size="md" onClick={() => setFilterOpen(o => !o)}>
-                  <IconFilter size={16}/> Filter
-                  {activeFolder !== 'All' && (
-                    <span className="ml-1 inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-user text-white text-[11px] font-medium">1</span>
-                  )}
-                </Button>
-                {filterOpen && (
-                  <div className="absolute right-0 mt-2 w-64 bg-surface rounded-xl shadow-lift modal-in p-4 z-20">
-                    <div className="text-[11px] uppercase tracking-[0.18em] text-ink/65 mb-2">Folder</div>
-                    <div className="max-h-44 overflow-y-auto -mx-1 pr-1">
-                      {folders.map(f => (
-                        <button
-                          key={f}
-                          onClick={() => setActiveFolder(f)}
-                          className={`w-full text-left text-sm px-2 py-1.5 rounded-md flex items-center gap-2 transition cursor-pointer ${activeFolder === f ? 'bg-user text-white' : 'text-ink hover:bg-secondary/30'}`}
-                        >
-                          {f === 'All' ? <IconBook size={14}/> : <IconFolder size={14}/>}
-                          <span className="flex-1">{f}</span>
-                        </button>
-                      ))}
-                    </div>
-                    <div className="text-[11px] uppercase tracking-[0.18em] text-ink/65 mb-2 mt-4">Sort by</div>
-                    {[
-                      { id: 'recent', label: 'Recently added' },
-                      { id: 'title',  label: 'Title (A→Z)' },
-                      { id: 'size',   label: 'File size' },
-                    ].map(s => (
-                      <button key={s.id} onClick={() => setSort(s.id)}
-                        className={`w-full text-left text-sm px-2 py-1.5 rounded-md flex items-center justify-between transition cursor-pointer ${sort === s.id ? 'text-user font-medium' : 'text-ink hover:bg-secondary/30'}`}>
-                        <span>{s.label}</span>
-                        {sort === s.id && <IconCheck size={14}/>}
+            </div>
+            {/* Filter */}
+            <div className="relative" ref={filterRef}>
+              <button
+                onClick={() => setFilterOpen(o => !o)}
+                className="h-11 px-4 rounded-xl bg-white/[0.04] border border-white/10 text-[14px] text-white/70 hover:bg-white/[0.07] hover:border-white/20 transition inline-flex items-center gap-2 cursor-pointer"
+              >
+                <IconFilter size={15} />
+                Filter
+                {activeFolder !== 'All' && (
+                  <span className="ml-0.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-white text-[#050505] text-[10px] font-bold">1</span>
+                )}
+              </button>
+              {filterOpen && (
+                <div className="absolute right-0 mt-2 w-64 bg-[#111] rounded-xl border border-white/10 shadow-[0_10px_40px_rgba(0,0,0,0.6)] modal-in p-4 z-20">
+                  <div className="text-[11px] uppercase tracking-[0.18em] text-white/40 mb-2">Folder</div>
+                  <div className="max-h-44 overflow-y-auto -mx-1 pr-1">
+                    {folders.map(f => (
+                      <button
+                        key={f}
+                        onClick={() => setActiveFolder(f)}
+                        className={`w-full text-left text-sm px-2 py-1.5 rounded-md flex items-center gap-2 transition cursor-pointer ${activeFolder === f ? 'bg-white text-[#050505]' : 'text-white/70 hover:bg-white/[0.06]'}`}
+                      >
+                        {f === 'All' ? <IconBook size={14}/> : <IconFolder size={14}/>}
+                        <span className="flex-1">{f}</span>
                       </button>
                     ))}
                   </div>
-                )}
-              </div>
+                  <div className="text-[11px] uppercase tracking-[0.18em] text-white/40 mb-2 mt-4">Sort by</div>
+                  {[
+                    { id: 'recent', label: 'Recently added' },
+                    { id: 'title',  label: 'Title (A→Z)' },
+                    { id: 'size',   label: 'File size' },
+                  ].map(s => (
+                    <button key={s.id} onClick={() => setSort(s.id)}
+                      className={`w-full text-left text-sm px-2 py-1.5 rounded-md flex items-center justify-between transition cursor-pointer ${sort === s.id ? 'text-white font-medium' : 'text-white/70 hover:bg-white/[0.06]'}`}>
+                      <span>{s.label}</span>
+                      {sort === s.id && <IconCheck size={14}/>}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-          }
-        />
+            {/* Upload button */}
+            <button
+              onClick={onFabClick}
+              className="h-11 px-5 rounded-xl bg-white/[0.04] border border-white/10 text-[14px] font-medium text-white/80 hover:bg-white/[0.08] hover:border-white/20 transition inline-flex items-center gap-2 cursor-pointer"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
+              Upload Book
+            </button>
+          </div>
+        </div>
 
-        {/* Result count */}
-        {!isEmpty && (
-          <div className="flex items-center justify-between text-[13px] text-ink/65 mb-5">
+        {/* Result count when filtered */}
+        {!isEmpty && (query || activeFolder !== 'All') && (
+          <div className="flex items-center justify-between text-[13px] text-white/50 mb-5">
             <div>
-              Showing <span className="text-ink font-medium">{visible.length}</span>
-              {visible.length !== myBooks.length && <> of <span className="text-ink font-medium">{myBooks.length}</span></>}
+              Showing <span className="text-white font-medium">{visible.length}</span>
+              {visible.length !== myBooks.length && <> of <span className="text-white font-medium">{myBooks.length}</span></>}
               {' '}{visible.length === 1 ? 'title' : 'titles'}
-              {activeFolder !== 'All' && <> in <span className="text-ink font-medium">{activeFolder}</span></>}
-              {user.role === 'user' && <> · <span className="text-ink/55">your uploads</span></>}
+              {activeFolder !== 'All' && <> in <span className="text-white font-medium">{activeFolder}</span></>}
             </div>
-            {(query || activeFolder !== 'All') && (
-              <button onClick={() => { setQuery(''); setActiveFolder('All'); }}
-                className="text-[12px] text-user hover:underline cursor-pointer">Clear filters</button>
-            )}
+            <button onClick={() => { setQuery(''); setActiveFolder('All'); }}
+              className="text-[12px] text-white/60 hover:text-white hover:underline cursor-pointer">Clear filters</button>
           </div>
         )}
 
@@ -426,13 +447,14 @@ function UserDashboard({ user, books, setBooks, pushToast }){
         {isEmpty ? (
           <EmptyState onUpload={onFabClick} />
         ) : visible.length === 0 ? (
-          <div className="rounded-2xl border-2 border-dashed border-secondary/60 bg-surface/50 py-16 text-center">
-            <div className="font-serif text-[22px] text-ink mb-1.5">No titles match.</div>
-            <div className="text-sm text-ink/65 mb-5">Try a different search or clear the active folder.</div>
-            <Button variant="secondary" onClick={() => { setQuery(''); setActiveFolder('All'); }}>Clear filters</Button>
+          <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] py-16 text-center">
+            <div className="font-serif text-[22px] text-white mb-1.5">No titles match.</div>
+            <div className="text-sm text-white/50 mb-5">Try a different search or clear the active folder.</div>
+            <button onClick={() => { setQuery(''); setActiveFolder('All'); }}
+              className="h-10 px-5 rounded-xl border border-white/15 text-[14px] text-white/70 hover:bg-white/[0.06] transition cursor-pointer">Clear filters</button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {visible.map(b => (
               <CoverCard key={b.id} book={b} onOpen={() => setActiveBook(b)} onDelete={() => setToDelete(b)} />
             ))}
@@ -444,7 +466,7 @@ function UserDashboard({ user, books, setBooks, pushToast }){
       <button
         ref={fabRef}
         onClick={onFabClick}
-        className="fixed bottom-8 right-8 z-40 h-14 w-14 rounded-full bg-user text-white shadow-fab grid place-items-center hover:brightness-110 active:scale-95 transition"
+        className="fixed bottom-8 right-8 z-40 h-14 w-14 rounded-full bg-white text-[#050505] shadow-[0_4px_20px_rgba(255,255,255,0.15)] grid place-items-center hover:scale-105 active:scale-95 transition cursor-pointer"
         aria-label="Upload books"
         title="Upload a folder of EPUBs"
       >
@@ -527,7 +549,7 @@ function ChooserCard({ icon, title, description, meta, onClick }){
       onClick={onClick}
       className="group text-left bg-bg/70 hover:bg-bg border border-ink/15 hover:border-user rounded-xl p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card"
     >
-      <div className="h-12 w-12 rounded-lg bg-surface text-ink grid place-items-center mb-3 group-hover:bg-user group-hover:text-white transition">
+      <div className="h-12 w-12 rounded-lg bg-surface text-ink grid place-items-center mb-3 group-hover:bg-user group-hover:text-ink-invert transition">
         {icon}
       </div>
       <div className="font-serif text-[18px] text-ink leading-tight">{title}</div>
@@ -547,41 +569,46 @@ function CoverCard({ book, onOpen, onDelete }){
     : (tr?.romaji && tr.romaji !== book.title ? tr.romaji : null);
   return (
     <div
-      className="cover-card group relative bg-surface rounded-xl shadow-card overflow-hidden pop-in cursor-pointer"
+      className="group relative rounded-xl bg-[#0e0e0e] border border-white/[0.06] overflow-hidden cursor-pointer transition-all duration-300 hover:border-white/15 hover:-translate-y-1 hover:shadow-[0_15px_40px_rgba(0,0,0,0.5)]"
       onClick={onOpen}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen?.(); } }}
     >
+      {/* Delete button */}
       <button
-        className="trash absolute top-2.5 right-2.5 z-10 h-8 w-8 grid place-items-center rounded-md bg-ink/85 text-white hover:bg-crimson transition"
+        className="absolute top-2.5 right-2.5 z-10 h-8 w-8 grid place-items-center rounded-md bg-black/60 text-white/60 opacity-0 group-hover:opacity-100 hover:bg-crimson hover:text-white transition-all backdrop-blur-sm"
         onClick={(e) => { e.stopPropagation(); onDelete(); }}
         aria-label={`Delete ${book.title}`}
         title="Delete"
       >
         <IconTrash size={15}/>
       </button>
+      {/* Translation badge */}
       {tr && (
-        <div className="absolute top-2.5 left-2.5 z-10 inline-flex items-center gap-1 h-6 px-1.5 rounded-md bg-ink/85 text-white text-[10px] font-medium uppercase tracking-[0.12em]">
+        <div className="absolute top-2.5 left-2.5 z-10 inline-flex items-center gap-1 h-6 px-1.5 rounded-md bg-black/60 text-white/70 text-[10px] font-medium uppercase tracking-[0.12em] backdrop-blur-sm">
           <IconSparkle size={10}/> {(tr.language || '').toUpperCase()}
         </div>
       )}
-      <div className="aspect-[2/3] w-full overflow-hidden bg-ink/10 relative">
+      {/* Cover art area */}
+      <div className="aspect-[2/3] w-full overflow-hidden relative">
         {book.cover ? (
-          <img src={book.cover} alt="" className="w-full h-full object-cover" loading="lazy"/>
+          <img src={book.cover} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy"/>
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center bg-secondary/20 text-ink/40">
-            <IconBook size={32}/>
+          <div className="absolute inset-0 flex flex-col justify-between p-4 bg-[#111]">
+            <div className="text-[10px] uppercase tracking-widest text-white/25 font-medium">EPUB</div>
+            <div />
           </div>
         )}
       </div>
+      {/* Title section */}
       <div className="px-4 pt-3 pb-4">
-        <div className="font-serif text-[16px] text-ink truncate-1 leading-snug" title={book.title}>{book.title}</div>
+        <div className="font-serif text-[16px] text-white/90 leading-snug truncate" title={book.title}>{book.title}</div>
         {showSub && (
-          <div className="text-[12px] text-ink/55 italic truncate-1 mt-0.5" title={showSub}>“{showSub}”</div>
+          <div className="text-[12px] text-white/40 italic truncate mt-0.5" title={showSub}>"{showSub}"</div>
         )}
-        <div className="mt-0.5 flex items-center gap-1.5 text-[12px] text-ink/70">
-          <IconFolder size={12}/>
+        <div className="mt-1 flex items-center gap-1.5 text-[12px] text-white/40">
+          <IconFolder size={11}/>
           <span className="truncate">{book.subfolder}</span>
         </div>
       </div>
@@ -592,8 +619,8 @@ function CoverCard({ book, onOpen, onDelete }){
 // ---------- Empty state ----------
 function EmptyState({ onUpload }){
   return (
-    <div className="rounded-2xl border-2 border-dashed border-secondary/70 bg-surface/40 py-20 px-6 text-center">
-      <svg width="120" height="90" viewBox="0 0 120 90" className="mx-auto mb-5" fill="none" stroke="#AA968A" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] py-20 px-6 text-center">
+      <svg width="120" height="90" viewBox="0 0 120 90" className="mx-auto mb-5" fill="none" stroke="#444" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
         <rect x="14" y="20" width="92" height="60" rx="6"/>
         <path d="M14 30h92"/>
         <path d="M30 50h26"/>
@@ -602,11 +629,14 @@ function EmptyState({ onUpload }){
         <path d="M70 14v18"/>
         <path d="m64 20 6-6 6 6"/>
       </svg>
-      <div className="font-serif text-[22px] text-ink mb-1.5">Your desk is empty.</div>
-      <p className="text-sm text-ink/70 max-w-md mx-auto mb-6">
+      <div className="font-serif text-[22px] text-white mb-1.5">Your desk is empty.</div>
+      <p className="text-sm text-white/50 max-w-md mx-auto mb-6">
         Drop a folder of EPUBs here, or click the button below to browse.
       </p>
-      <Button onClick={onUpload}><IconUpload size={16}/> Choose folder</Button>
+      <button onClick={onUpload}
+        className="h-11 px-6 rounded-xl bg-white text-[#050505] text-[14px] font-bold hover:scale-105 transition-transform cursor-pointer inline-flex items-center gap-2">
+        <IconUpload size={16}/> Choose folder
+      </button>
     </div>
   );
 }
@@ -781,7 +811,7 @@ function TranslateBlock({ book, onTranslate }){
           </div>
           {!t && state !== 'loading' && (
             <button onClick={() => onTranslate(book)}
-              className="h-7 px-2.5 rounded-md text-[12px] font-medium bg-ink text-white hover:brightness-110 transition inline-flex items-center gap-1.5">
+              className="h-7 px-2.5 rounded-md text-[12px] font-medium bg-white text-ink-invert hover:brightness-90 transition inline-flex items-center gap-1.5">
               <IconTranslate size={13}/> Translate
             </button>
           )}

@@ -1,16 +1,17 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-bg: #f4f3f0;
-  --color-surface: #ffffff;
-  --color-ink: #1f1c1a;
-  --color-user: #1f1c1a;
-  --color-admin: #1f1c1a;
+  --color-bg: #050505;
+  --color-surface: #111111;
+  --color-ink: #ffffff;
+  --color-ink-invert: #050505;
+  --color-user: #ffffff;
+  --color-admin: #ffffff;
   --color-crimson: #ef4444;
-  --color-secondary: #e5e5e5;
-  --shadow-card: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
-  --shadow-lift: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-  --shadow-fab: 0 4px 14px 0 rgb(0 0 0 / 0.25);
+  --color-secondary: #222222;
+  --shadow-card: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+  --shadow-lift: 0 10px 15px -3px rgb(0 0 0 / 0.4), 0 4px 6px -4px rgb(0 0 0 / 0.4);
+  --shadow-fab: 0 4px 14px 0 rgb(0 0 0 / 0.5);
   --font-sans: var(--font-inter), sans-serif;
   --font-serif: var(--font-lora), serif;
 }
