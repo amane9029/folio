@@ -85,7 +85,7 @@ export default function LoginPage(){
             type="submit"
             disabled={busy}
             style={{ backgroundColor: '#1a1a1a', color: '#fff' }}
-            className="w-full mt-7 inline-flex items-center justify-center gap-2 h-12 px-5 rounded-lg font-medium text-[15px] transition hover:brightness-125 active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed"
+            className="w-full mt-7 inline-flex items-center justify-center gap-2 h-12 px-5 rounded-lg font-medium text-[15px] transition hover:brightness-125 active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
           >
             {busy ? <><IconLoader size={16}/> Signing in…</> : 'Sign In'}
           </button>

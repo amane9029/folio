@@ -213,7 +213,7 @@ function Tab({ active, onClick, icon, label, count }){
   return (
     <button
       onClick={onClick}
-      className={`relative px-4 h-10 text-[13px] font-medium inline-flex items-center gap-2 transition-colors ${active ? 'text-admin' : 'text-ink/65 hover:text-ink'}`}
+      className={`relative px-4 h-10 text-[13px] font-medium inline-flex items-center gap-2 transition-colors cursor-pointer ${active ? 'text-admin' : 'text-ink/65 hover:text-ink'}`}
     >
       {icon} {label}
       {count !== undefined && (
@@ -733,7 +733,7 @@ function InviteModal({ open, onClose, onSend, existing }){
 function RolePick({ active, onClick, title, sub }){
   return (
     <button type="button" onClick={onClick}
-      className={`text-left rounded-lg border p-3 transition
+      className={`text-left rounded-lg border p-3 transition cursor-pointer
         ${active ? 'border-admin bg-bg' : 'border-ink/15 bg-bg/50 hover:border-ink/40'}`}>
       <div className="flex items-center gap-2 text-[13px] font-medium text-ink">
         <span className={`h-3.5 w-3.5 rounded-full border ${active ? 'border-admin bg-admin' : 'border-ink/40'} grid place-items-center`}>
@@ -779,7 +779,7 @@ function Th({ label, sortKey, cur, dir, onSort, align = 'left' }){
 function PageBtn({ children, active, onClick, disabled }){
   return (
     <button onClick={onClick} disabled={disabled}
-      className={`min-w-[28px] h-8 px-2 rounded-md text-[12.5px] font-medium transition disabled:opacity-40 disabled:cursor-not-allowed
+      className={`min-w-[28px] h-8 px-2 rounded-md text-[12.5px] font-medium transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer
         ${active ? 'bg-admin text-white' : 'text-ink hover:bg-secondary/30'}`}>
       {children}
     </button>

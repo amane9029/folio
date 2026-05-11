@@ -397,7 +397,7 @@ Title: ${JSON.stringify(book.title)}`);
                         <button
                           key={f}
                           onClick={() => setActiveFolder(f)}
-                          className={`w-full text-left text-sm px-2 py-1.5 rounded-md flex items-center gap-2 transition ${activeFolder === f ? 'bg-user text-white' : 'text-ink hover:bg-secondary/30'}`}
+                          className={`w-full text-left text-sm px-2 py-1.5 rounded-md flex items-center gap-2 transition cursor-pointer ${activeFolder === f ? 'bg-user text-white' : 'text-ink hover:bg-secondary/30'}`}
                         >
                           {f === 'All' ? <IconBook size={14}/> : <IconFolder size={14}/>}
                           <span className="flex-1">{f}</span>
@@ -411,7 +411,7 @@ Title: ${JSON.stringify(book.title)}`);
                       { id: 'size',   label: 'File size' },
                     ].map(s => (
                       <button key={s.id} onClick={() => setSort(s.id)}
-                        className={`w-full text-left text-sm px-2 py-1.5 rounded-md flex items-center justify-between transition ${sort === s.id ? 'text-user font-medium' : 'text-ink hover:bg-secondary/30'}`}>
+                        className={`w-full text-left text-sm px-2 py-1.5 rounded-md flex items-center justify-between transition cursor-pointer ${sort === s.id ? 'text-user font-medium' : 'text-ink hover:bg-secondary/30'}`}>
                         <span>{s.label}</span>
                         {sort === s.id && <IconCheck size={14}/>}
                       </button>
@@ -435,7 +435,7 @@ Title: ${JSON.stringify(book.title)}`);
             </div>
             {(query || activeFolder !== 'All') && (
               <button onClick={() => { setQuery(''); setActiveFolder('All'); }}
-                className="text-[12px] text-user hover:underline">Clear filters</button>
+                className="text-[12px] text-user hover:underline cursor-pointer">Clear filters</button>
             )}
           </div>
         )}

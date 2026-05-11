@@ -29,7 +29,7 @@ export function Button({ variant = 'primary', accent = 'user', size = 'md', clas
   return (
     <button
       data-accent={accent}
-      className={`inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-[background,color,box-shadow,filter,border-color] duration-200 ease-out ${sizes[size]} ${v} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-[background,color,box-shadow,filter,border-color] duration-200 ease-out cursor-pointer ${sizes[size]} ${v} ${className}`}
       {...rest}
     >{children}</button>
   );
@@ -64,7 +64,7 @@ export function Modal({ open, onClose, children, maxWidth = 'max-w-md' }: any){
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in">
-      <div className="absolute inset-0 bg-ink/20 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-ink/20 backdrop-blur-sm cursor-pointer" onClick={onClose} />
       <div className={`relative ${maxWidth} w-[92%] bg-surface rounded-2xl shadow-lift animate-modal-in p-6`}>
         {children}
       </div>
@@ -86,7 +86,7 @@ export function AvatarMenu({ user, onLogout, accent = 'user' }: any){
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-2 group"
+        className="flex items-center gap-2 group cursor-pointer"
         aria-haspopup="menu"
         aria-expanded={open}
       >
@@ -108,7 +108,7 @@ export function AvatarMenu({ user, onLogout, accent = 'user' }: any){
           </div>
           <button
             onClick={onLogout}
-            className="w-full px-4 py-2.5 text-left text-sm text-ink hover:bg-secondary/30 flex items-center gap-2 transition"
+            className="w-full px-4 py-2.5 text-left text-sm text-ink hover:bg-secondary/30 flex items-center gap-2 transition cursor-pointer"
           >
             <IconLogout size={16}/> Sign out
           </button>
@@ -125,7 +125,7 @@ export function TopNav({ role, currentPath, user, onNavigate, onLogout }: any){
   const NavLink = ({ href, label, active }: any) => (
     <button
       onClick={() => onNavigate(href)}
-      className="relative px-1.5 h-16 text-[14px] font-medium tracking-tight transition-colors duration-200"
+      className="relative px-1.5 h-16 text-[14px] font-medium tracking-tight transition-colors duration-200 cursor-pointer"
       data-accent={accent}
       style={{ color: active ? (accent==='admin' ? '#6E6A6F' : '#6C698D') : '#6E6A6FAA' }}
       onMouseEnter={(e: any)=>{ if(!active) e.currentTarget.style.color = '#6E6A6F'; }}
