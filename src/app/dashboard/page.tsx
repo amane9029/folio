@@ -699,11 +699,7 @@ function BookDetailDrawer({ book, currentUser, onClose, onDelete, onTranslate })
 
   const canDelete = currentUser.role === 'admin' || book.uploadedBy === currentUser.id;
   
-  const chapters = [
-    'Front Matter', 'Chapter 1 — A Beginning', 'Chapter 2 — Drift',
-    'Chapter 3 — The Long Walk', 'Chapter 4 — Letters', 'Chapter 5 — Inventories',
-    'Chapter 6 — Returns', 'Acknowledgements',
-  ];
+
   const progress = 0;
 
   return (
@@ -757,17 +753,7 @@ function BookDetailDrawer({ book, currentUser, onClose, onDelete, onTranslate })
             <Meta label="Format"      value="EPUB 3.0" />
           </div>
 
-          <div className="px-6 pb-6">
-            <div className="text-[11px] uppercase tracking-[0.16em] text-ink/65 mb-2">Table of contents</div>
-            <ol className="bg-surface rounded-lg overflow-hidden divide-y divide-ink/10">
-              {chapters.map((c, i) => (
-                <li key={i} className="flex items-center gap-3 px-4 py-2.5 text-[13px] text-ink/85">
-                  <span className="w-6 text-ink/55 tabular-nums text-[11.5px]">{String(i+1).padStart(2,'0')}</span>
-                  <span className="flex-1 truncate">{c}</span>
-                </li>
-              ))}
-            </ol>
-          </div>
+
         </div>
 
         <div className="border-t border-ink/15 px-5 py-3 flex items-center gap-2">
