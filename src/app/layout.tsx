@@ -17,6 +17,10 @@ const lora = Lora({
 export const metadata: Metadata = {
   title: "Folio",
   description: "EPUB Library Manager",
+  icons: {
+    icon: "/main_logo.svg",
+    apple: "/main_logo.svg",
+  },
 };
 
 export default function RootLayout({

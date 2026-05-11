@@ -51,8 +51,8 @@ export default function LoginPage(){
           className="bg-surface rounded-2xl shadow-card p-8 sm:p-10"
         >
           <div className="text-center mb-8">
-            <div className="font-serif font-bold text-[36px] text-ink tracking-tight leading-none">Folio</div>
-            <div className="mt-2 text-[12px] uppercase tracking-[0.22em] text-ink/65">EPUB Library Manager</div>
+            <img src="/logo_with_text.svg" alt="Folio" className="h-24 mx-auto" />
+            <div className="mt-3 text-[12px] uppercase tracking-[0.22em] text-ink/65">EPUB Library Manager</div>
           </div>
 
           <label className="block text-[12px] font-medium text-ink/80 uppercase tracking-wider mb-1.5">Email</label>

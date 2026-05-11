@@ -140,7 +140,8 @@ export function TopNav({ role, currentPath, user, onNavigate, onLogout }: any){
     <header className="sticky top-0 z-30 bg-bg/85 backdrop-blur border-b border-ink/10" data-accent={accent}>
       <div className="max-w-[1400px] mx-auto h-16 px-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <span className="font-serif font-bold text-[22px] tracking-tight text-ink select-none">Folio</span>
+          <img src="/main_logo.svg" alt="Folio" className="h-9 w-9" />
+          <span className="font-serif font-bold text-[20px] tracking-tight text-ink select-none">Folio</span>
           <span className="hidden sm:inline-block text-[11px] uppercase tracking-[0.18em] text-ink/55 border-l border-ink/20 pl-3">
             {role === 'admin' ? 'Admin Console' : 'Library'}
           </span>
