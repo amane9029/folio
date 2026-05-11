@@ -47,6 +47,7 @@ export default function DashboardPage() {
             fileSizeKb: b.file_size_kb,
             uploadedAt: b.uploaded_at,
             uploadedBy: b.uploaded_by,
+            translation: b.translation,
           }));
           setBooks(mapped);
         }
@@ -291,6 +292,7 @@ function UserDashboard({ user, books, setBooks, pushToast }){
                 fileSizeKb: data.file_size_kb,
                 uploadedAt: data.uploaded_at,
                 uploadedBy: data.uploaded_by,
+                translation: data.translation,
             };
 
             setBooks(prev => [mapped, ...prev]);
@@ -319,21 +321,19 @@ function UserDashboard({ user, books, setBooks, pushToast }){
   const onTranslate = useCallback(async (book) => {
     setBooks(prev => prev.map(b => b.id === book.id ? { ...b, _translateState:'loading' } : b));
     try {
-      const raw = await window.claude.complete(
-`You are a precise book-title translator. Return ONLY a single-line minified JSON object, no prose.
-Input title may contain Japanese, Chinese, Korean, Cyrillic, Arabic, etc.
-Keys: language (BCP-47 like "ja","zh","ko","ru","ar"), romaji (transliteration in Latin script), english (idiomatic English title).
-If the input is already English, return {"language":"en","romaji":"<title>","english":"<title>"}.
-
-Title: ${JSON.stringify(book.title)}`);
-      const m = String(raw).match(/\{[\s\S]*\}/);
-      const parsed = m ? JSON.parse(m[0]) : null;
-      if (!parsed) throw new Error('parse');
+      const res = await fetch(`/api/books/${book.id}/translate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: book.title })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.translation) throw new Error(data.error || 'translation failed');
+      
       setBooks(prev => prev.map(b => b.id === book.id
-        ? { ...b, _translateState:'done', translation: { language: parsed.language, romaji: parsed.romaji, english: parsed.english } }
+        ? { ...b, _translateState:'done', translation: data.translation }
         : b));
-    } catch (e){
-      setBooks(prev => prev.map(b => b.id === book.id ? { ...b, _translateState:'error' } : b));
+    } catch (e: any){
+      setBooks(prev => prev.map(b => b.id === book.id ? { ...b, _translateState:'error', _translateError: e.message } : b));
     }
   }, [setBooks]);
 
@@ -809,7 +809,7 @@ function TranslateBlock({ book, onTranslate }){
         <div className="flex items-center justify-between gap-3 mb-2">
           <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.16em] text-ink/65">
             <IconSparkle size={12}/> Folio Translate
-            <span className="text-[10px] text-ink/45 normal-case tracking-normal font-mono">groq · llama-3.1-8b</span>
+            <span className="text-[10px] text-ink/45 normal-case tracking-normal font-mono">groq · llama-3.3-70b-versatile</span>
           </div>
           {!t && state !== 'loading' && (
             <button onClick={() => onTranslate(book)}
@@ -831,13 +831,11 @@ function TranslateBlock({ book, onTranslate }){
           </div>
         )}
         {state === 'error' && (
-          <div className="text-[12.5px] text-crimson flex items-center gap-1.5"><IconAlert size={13}/> Translation failed. Tap Retry.</div>
+          <div className="text-[12.5px] text-crimson flex items-center gap-1.5"><IconAlert size={13}/> Translation failed: {book._translateError || 'Tap Retry.'}</div>
         )}
         {t && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-1">
-            <TranslateField label="Detected"  value={(t.language || '?').toUpperCase()} mono/>
-            <TranslateField label="Romanized" value={t.romaji}/>
-            <TranslateField label="English"   value={t.english}/>
+          <div className="mt-1">
+            <TranslateField label="English Translation"   value={t.english}/>
           </div>
         )}
       </div>

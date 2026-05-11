@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@insforge/sdk';
 import { insforge } from '@/lib/insforge';
 
 export async function GET(request: NextRequest) {
@@ -22,7 +23,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid token: ' + e.message }, { status: 401 });
     }
 
-    const { data, error } = await insforge.database
+    const insforgeUser = createClient({
+      baseUrl: process.env.NEXT_PUBLIC_INSFORGE_URL!,
+      anonKey: process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY!
+    });
+    insforgeUser.setAccessToken(token);
+
+    const { data, error } = await insforgeUser.database
       .from('books')
       .select()
       .order('uploaded_at', { ascending: false });

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@insforge/sdk';
 import { insforge } from '@/lib/insforge';
 
 export async function DELETE(
@@ -27,8 +28,14 @@ export async function DELETE(
 
     const { id } = await params;
 
+    const insforgeUser = createClient({
+      baseUrl: process.env.NEXT_PUBLIC_INSFORGE_URL!,
+      anonKey: process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY!
+    });
+    insforgeUser.setAccessToken(token);
+
     // Fetch the book first to get cover_url for storage cleanup
-    const { data: book, error: fetchError } = await insforge.database
+    const { data: book, error: fetchError } = await insforgeUser.database
       .from('books')
       .select('id, cover_url')
       .eq('id', id)
@@ -58,7 +65,7 @@ export async function DELETE(
     }
 
     // Delete the book record
-    const { error: deleteError } = await insforge.database
+    const { error: deleteError } = await insforgeUser.database
       .from('books')
       .delete()
       .eq('id', id);

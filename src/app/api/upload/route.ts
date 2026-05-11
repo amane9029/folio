@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { insforge } from '@/lib/insforge';
+import { insforge, insforgeAdmin } from '@/lib/insforge';
 
 export async function POST(request: NextRequest) {
   try {
@@ -71,18 +71,67 @@ export async function POST(request: NextRequest) {
       console.log('No cover received — cover size:', cover?.size);
     }
 
-    // Insert book record
-    const { data: book, error: dbError } = await insforge.database
+    let translation = null;
+    const NON_LATIN_RE = /[\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF\uAC00-\uD7AF\u0400-\u04FF\u0590-\u06FF\u0900-\u097F\u0370-\u03FF\u0E00-\u0E7F]/;
+
+    if (NON_LATIN_RE.test(title)) {
+      try {
+        console.log('Translating title with Groq:', title);
+        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: 'llama-3.3-70b-versatile',
+            messages: [
+              {
+                role: 'user',
+                content: `You are a precise book-title translator. Return ONLY a single-line minified JSON object, no prose.
+Input title may contain Japanese, Chinese, Korean, Cyrillic, Arabic, etc.
+Keys: language (BCP-47 like "ja","zh","ko","ru","ar"), romaji (transliteration in Latin script), english (idiomatic English title).
+If the input is already English, return {"language":"en","romaji":"${title}","english":"${title}"}.
+
+Title: ${JSON.stringify(title)}`
+              }
+            ]
+          })
+        });
+
+        if (!res.ok) {
+          throw new Error(`Groq API Error: ${res.status} ${res.statusText}`);
+        }
+
+        const data = await res.json();
+        const content = data.choices?.[0]?.message?.content || '';
+        const m = content.match(/\{[\s\S]*\}/);
+        if (m) {
+          translation = JSON.parse(m[0]);
+        }
+      } catch (e: any) {
+        console.error('Translation error with Groq:', e.message);
+      }
+    }
+
+    // Validate UUID format
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId || '');
+    const finalUserId = isUuid ? userId : null;
+
+    const newBookId = crypto.randomUUID();
+
+    // Insert book record without .select() to avoid RLS read policy evaluation
+    const { error: dbError } = await insforgeAdmin.database
       .from('books')
       .insert([{
+        id: newBookId,
         title,
         subfolder: subfolder || null,
         cover_url: coverUrl,
         file_size_kb: fileSizeKb,
-        uploaded_by: userId,
-      }])
-      .select()
-      .single();
+        uploaded_by: finalUserId,
+        translation: translation
+      }]);
 
     if (dbError) {
       return NextResponse.json(
@@ -91,7 +140,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ ...book, cover_key: coverKey });
+    return NextResponse.json({ 
+      id: newBookId,
+      title,
+      cover_url: coverUrl,
+      file_size_kb: fileSizeKb,
+      translation,
+      cover_key: coverKey 
+    });
   } catch (err: any) {
     return NextResponse.json(
       { error: err.message || 'Internal server error.' },
