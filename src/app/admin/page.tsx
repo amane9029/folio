@@ -16,6 +16,7 @@ export default function AdminPage() {
   const [events, setEvents] = useState<any[]>([]);
   const [invites, setInvites] = useState<any[]>([]);
   const [toast, setToast] = useState<string | null>(null);
+  const [storageStats, setStorageStats] = useState({ usedBytes: 0, objectCount: 0 });
 
   useEffect(() => {
     const roleMatch = document.cookie.match(/role=([^;]+)/);
@@ -52,6 +53,16 @@ export default function AdminPage() {
           setBooks(mapped);
         }
       });
+
+    // Fetch real storage usage from InsForge
+    fetch('/api/storage-stats')
+      .then(r => r.json())
+      .then(data => {
+        if (data && typeof data.usedBytes === 'number') {
+          setStorageStats(data);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const pushToast = (msg: string) => {
@@ -74,7 +85,7 @@ export default function AdminPage() {
   return (
     <>
       <TopNav role={user.role} currentPath={pathname} user={user} onNavigate={(p: string) => router.push(p)} onLogout={onLogout} />
-      <AdminPanel books={books} setBooks={setBooks} events={events} invites={invites} setInvites={setInvites} quotaCapKb={QUOTA_CAP_KB} currentUser={user} pushToast={pushToast} pushEvent={pushEvent} />
+      <AdminPanel books={books} setBooks={setBooks} events={events} invites={invites} setInvites={setInvites} quotaCapKb={QUOTA_CAP_KB} currentUser={user} pushToast={pushToast} pushEvent={pushEvent} storageStats={storageStats} />
       <Toast toast={toast} />
     </>
   );
@@ -82,7 +93,7 @@ export default function AdminPage() {
 
 // Admin Panel — stats + tabs (Library / Audit / Invites). Quota meter inline.
 
-function AdminPanel({ books, setBooks, events, invites, setInvites, quotaCapKb, currentUser, pushToast, pushEvent }){
+function AdminPanel({ books, setBooks, events, invites, setInvites, quotaCapKb, currentUser, pushToast, pushEvent, storageStats }){
   const [tab, setTab] = useState('library'); // library | audit | invites
   const [toDelete, setToDelete] = useState(null);
   const [bulkTargets, setBulkTargets] = useState(null); // array of books queued for bulk-delete
@@ -167,7 +178,7 @@ function AdminPanel({ books, setBooks, events, invites, setInvites, quotaCapKb, 
         {/* Stats row */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <StatCard label="Total Books"  value={stats.total} primary />
-          <QuotaCard usedKb={stats.usedKb} capKb={quotaCapKb} />
+          <QuotaCard usedBytes={storageStats.usedBytes} objectCount={storageStats.objectCount} />
           <StatCard label="Subfolders"   value={stats.folders} />
           <StatCard label="Contributors" value={stats.contributors} />
         </div>
@@ -213,11 +224,14 @@ function Tab({ active, onClick, icon, label, count }){
   );
 }
 
-// ---------- Quota meter ----------
-function QuotaCard({ usedKb, capKb }){
-  const pct = Math.min(100, (usedKb / capKb) * 100);
-  const usedMb = (usedKb / 1024).toFixed(1);
-  const capMb  = Math.round(capKb / 1024);
+// ---------- Quota meter (real InsForge storage) ----------
+function QuotaCard({ usedBytes, objectCount }){
+  // InsForge free tier: 1 GB storage
+  const capBytes = 1 * 1024 * 1024 * 1024; // 1 GB
+  const pct = Math.min(100, (usedBytes / capBytes) * 100);
+  // Display in MB if < 1 GB, otherwise in GB
+  const usedMb = (usedBytes / (1024 * 1024)).toFixed(1);
+  const capMb  = Math.round(capBytes / (1024 * 1024));
   const state = pct >= 90 ? 'danger' : pct >= 75 ? 'warn' : 'ok';
   const barColor = state === 'danger' ? 'bg-crimson' : state === 'warn' ? 'bg-ink/85' : 'bg-admin';
   return (
@@ -226,13 +240,14 @@ function QuotaCard({ usedKb, capKb }){
         <span className="font-serif font-semibold text-ink text-[40px] leading-none tabular-nums">{usedMb}</span>
         <span className="text-[15px] text-ink/65 font-medium">/ {capMb} MB</span>
       </div>
+      <div className="mt-1 text-[11px] text-ink/50">{objectCount} file{objectCount !== 1 ? 's' : ''} in storage</div>
       <div className="mt-2 h-1.5 bg-bg rounded-full overflow-hidden">
-        <div className={`h-full ${barColor} transition-all duration-500`} style={{ width: pct + '%' }}/>
+        <div className={`h-full ${barColor} transition-all duration-500`} style={{ width: Math.max(pct, 0.5) + '%' }}/>
       </div>
       <div className="mt-2 text-[12px] uppercase tracking-[0.16em] text-ink/65 flex items-center justify-between">
         <span>Storage used</span>
         <span className={`tabular-nums ${state === 'danger' ? 'text-crimson font-medium' : state === 'warn' ? 'text-ink' : 'text-ink/55'}`}>
-          {pct.toFixed(0)}%
+          {pct.toFixed(1)}%
         </span>
       </div>
     </div>
