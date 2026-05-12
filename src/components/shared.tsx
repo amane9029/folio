@@ -80,7 +80,23 @@ export function AvatarMenu({ user, onLogout, accent = 'user' }: any){
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
   }, []);
-  const ringColor = accent === 'admin' ? 'ring-admin' : 'ring-user';
+  const ringColor = accent === 'admin' ? 'ring-admin/40' : 'ring-white/18';
+  const displayEmail = user?.email && user.email !== '...' ? user.email : 'Signed in';
+  const displayName =
+    user?.name && user.name !== 'Loading'
+      ? user.name
+      : displayEmail !== 'Signed in'
+        ? displayEmail.split('@')[0]
+        : 'Reader';
+  const displayInitial =
+    user?.initials ||
+    displayName
+      .split(/[\s@._-]+/)
+      .filter(Boolean)
+      .slice(0, 1)
+      .map((part: string) => part[0]?.toUpperCase())
+      .join('') ||
+    'F';
 
   return (
     <div className="relative" ref={ref}>
@@ -91,16 +107,23 @@ export function AvatarMenu({ user, onLogout, accent = 'user' }: any){
         aria-haspopup="menu"
         aria-expanded={open}
       >
-        <div className={`h-9 w-9 rounded-full bg-secondary text-ink-invert grid place-items-center font-medium text-[13px] ring-2 ring-transparent group-hover:${ringColor} transition`}>
-          {user.initials}
+        <div className={`h-9 w-9 rounded-full border border-white/8 bg-[#232323] text-white grid place-items-center font-semibold text-[13px] shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_1px_8px_rgba(0,0,0,0.24)] ring-2 ring-transparent group-hover:${ringColor} transition overflow-hidden`}>
+          {displayInitial}
         </div>
         <IconChevDown size={16} className={`chev text-ink/70 transition-transform ${open ? 'rotate-180' : ''}`}/>
       </button>
       {open && (
         <div className="absolute right-0 mt-2 w-56 z-[70] bg-surface rounded-xl shadow-lift overflow-hidden animate-modal-in pointer-events-auto">
           <div className="px-4 py-3 border-b border-ink/15">
-            <div className="text-sm font-semibold text-ink">{user.name}</div>
-            <div className="text-xs text-ink/70 truncate">{user.email}</div>
+            <div className="flex items-start gap-3">
+              <div className="h-10 w-10 shrink-0 rounded-full border border-white/8 bg-[#232323] text-white grid place-items-center font-semibold text-[14px] shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_1px_8px_rgba(0,0,0,0.24)]">
+                {displayInitial}
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-ink truncate">{displayName}</div>
+                <div className="text-xs text-ink/70 truncate">{displayEmail}</div>
+              </div>
+            </div>
             <div className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-ink/70">
               {user.role === 'admin'
                 ? <><IconShield size={12}/> Administrator</>

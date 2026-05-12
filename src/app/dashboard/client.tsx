@@ -62,6 +62,52 @@ export default function DashboardClient({ initialBooks }: { initialBooks: any[] 
   useEffect(() => {
     let cancelled = false;
 
+    const hydrateUser = async () => {
+      try {
+        const { createClient } = await import("@insforge/sdk");
+        const insforge = createClient({
+          baseUrl: process.env.NEXT_PUBLIC_INSFORGE_URL!,
+          anonKey: process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY!,
+        });
+
+        const tokenMatch = document.cookie.match(/token=([^;]+)/);
+        if (tokenMatch) {
+          insforge.setAccessToken(tokenMatch[1]);
+        }
+
+        const { data, error } = await insforge.auth.getCurrentUser();
+        if (cancelled || error || !data?.user) return;
+
+        const email = data.user.email || "";
+        const name = data.user.profile?.name || email.split("@")[0] || "Reader";
+        const initials =
+          name
+            .split(/[\s@._-]+/)
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((part) => part[0]?.toUpperCase())
+            .join("") || "F";
+
+        setUser((prev) => ({
+          ...prev,
+          id: data.user.id || prev.id,
+          email: email || prev.email,
+          name,
+          initials,
+        }));
+      } catch {}
+    };
+
+    hydrateUser();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
     const loadBooks = async () => {
       try {
         const res = await fetch("/api/books", { cache: "no-store" });
@@ -159,8 +205,10 @@ function UserDashboard({ user, books, setBooks, pushToast, onLogout }) {
   const [activeBook, setActiveBook] = useState(null);
   const [uploads, setUploads] = useState(null);
   const [chooserOpen, setChooserOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const fabRef = useRef(null);
   const filterRef = useRef(null);
+  const searchRef = useRef(null);
 
   useEffect(() => {
     if (!filterOpen) return;
@@ -170,6 +218,15 @@ function UserDashboard({ user, books, setBooks, pushToast, onLogout }) {
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, [filterOpen]);
+
+  useEffect(() => {
+    if (!searchOpen) return;
+    const onDoc = (e) => {
+      if (searchRef.current && !searchRef.current.contains(e.target)) setSearchOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [searchOpen]);
 
   const myBooks = useMemo(() => books, [books]);
 
@@ -192,6 +249,15 @@ function UserDashboard({ user, books, setBooks, pushToast, onLogout }) {
     const set = new Set(myBooks.map((b) => b.subfolder));
     return ["All", ...Array.from(set).sort()];
   }, [myBooks]);
+
+  const liveResults = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    return myBooks
+      .filter((b) => b.title.toLowerCase().includes(q))
+      .sort((a, b) => a.title.localeCompare(b.title))
+      .slice(0, 6);
+  }, [myBooks, query]);
 
   const startUpload = async (mode = "folder") => {
     const input = document.createElement("input");
@@ -453,9 +519,8 @@ function UserDashboard({ user, books, setBooks, pushToast, onLogout }) {
               />
               <button
                 type="button"
-                onClick={() => router.push('/')}
-                aria-label="Go to home"
-                title="Go to home"
+                aria-hidden="true"
+                tabIndex={-1}
                 className="h-3 w-3 rounded-full bg-[#febc2e] border border-[#dea123] shadow-[0_0_0_1px_rgba(0,0,0,0.14)_inset] hover:brightness-110 transition"
               />
               <button
@@ -470,9 +535,6 @@ function UserDashboard({ user, books, setBooks, pushToast, onLogout }) {
               <div className="hidden sm:flex items-center gap-3 min-w-0">
                 <img src="/main_logo.svg" alt="Folio" className="h-5 w-5 filter invert opacity-95" />
                 <span className="font-serif font-bold text-[22px] tracking-tight text-white">Folio</span>
-              </div>
-              <div className="min-w-0 flex-1 max-w-xs sm:max-w-md h-8 rounded-lg bg-white/[0.04] border border-white/8 px-3 flex items-center">
-                <span className="truncate text-[11px] text-white/35 font-mono">folio.app/library</span>
               </div>
             </div>
             <div className="hidden sm:block">
@@ -505,15 +567,40 @@ function UserDashboard({ user, books, setBooks, pushToast, onLogout }) {
                 </div>
 
                 <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3">
-                  <div className="relative min-w-0 sm:w-[240px]">
+                  <div className="relative min-w-0 sm:w-[240px]" ref={searchRef}>
                     <IconSearch size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/35" />
                     <input
                       type="text"
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
+                      onFocus={() => setSearchOpen(true)}
                       placeholder="Search..."
                       className="h-12 w-full rounded-xl bg-white/[0.04] border border-white/10 pl-9 pr-3 text-[14px] text-white placeholder-white/28 focus:border-white/20 transition outline-none"
                     />
+                    {searchOpen && query.trim() && (
+                      <div className="absolute left-0 right-0 top-[calc(100%+10px)] z-20 rounded-xl border border-white/10 bg-[#111] shadow-[0_10px_40px_rgba(0,0,0,0.6)] overflow-hidden">
+                        {liveResults.length ? (
+                          <div className="py-2">
+                            {liveResults.map((book) => (
+                              <button
+                                key={book.id}
+                                type="button"
+                                onClick={() => {
+                                  setActiveBook(book);
+                                  setSearchOpen(false);
+                                }}
+                                className="w-full px-3 py-2.5 text-left hover:bg-white/[0.06] transition cursor-pointer"
+                              >
+                                <div className="text-[13px] text-white truncate">{book.title}</div>
+                                <div className="text-[11px] text-white/42 truncate mt-0.5">{book.subfolder}</div>
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="px-3 py-3 text-[12px] text-white/48">No books found</div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="relative" ref={filterRef}>
@@ -626,7 +713,12 @@ function UserDashboard({ user, books, setBooks, pushToast, onLogout }) {
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
                   {visible.map((b) => (
-                    <CoverCard key={b.id} book={b} onOpen={() => setActiveBook(b)} onDelete={() => setToDelete(b)} />
+                    <CoverCard
+                      key={b.id}
+                      book={b}
+                      onOpen={() => setActiveBook(b)}
+                      onDelete={() => setToDelete(b)}
+                    />
                   ))}
                 </div>
               )}

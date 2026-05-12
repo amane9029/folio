@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@insforge/sdk';
 import { insforgeAdmin } from '@/lib/insforge';
 
 function decodeJwtPayload(token: string) {
@@ -18,8 +19,6 @@ export async function GET(request: NextRequest) {
     const cookieToken = request.cookies.get('token')?.value;
     const headerToken = request.headers.get('authorization')?.replace('Bearer ', '');
     const token = cookieToken || headerToken;
-    const role = request.cookies.get('role')?.value || 'user';
-    
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized - no token' }, { status: 401 });
     }
@@ -34,11 +33,35 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid token: ' + e.message }, { status: 401 });
     }
 
-    let query = insforgeAdmin.database
-      .from('books')
-      .select();
+    const roleCookie = request.cookies.get('role')?.value || 'user';
+    let isAdmin = roleCookie === 'admin';
 
-    if (role !== 'admin') {
+    if (!isAdmin) {
+      const { data: profileRows, error: profileError } = await insforgeAdmin.database
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
+        .limit(1);
+
+      if (!profileError && Array.isArray(profileRows) && profileRows[0]?.role === 'admin') {
+        isAdmin = true;
+      }
+    }
+
+    const client = isAdmin
+      ? insforgeAdmin
+      : createClient({
+          baseUrl: process.env.NEXT_PUBLIC_INSFORGE_URL!,
+          anonKey: process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY!,
+        });
+
+    if (!isAdmin) {
+      client.setAccessToken(token);
+    }
+
+    let query = client.database.from('books').select();
+
+    if (!isAdmin) {
       query = query.eq('uploaded_by', userId);
     }
 
@@ -49,9 +72,14 @@ export async function GET(request: NextRequest) {
         message: error.message || 'Failed to fetch books.',
         code: (error as { error?: string } | null)?.error ?? null,
         statusCode: (error as { statusCode?: number } | null)?.statusCode ?? 500,
+        isAdmin,
+        userId,
       });
 
-      return NextResponse.json([]);
+      return NextResponse.json(
+        { error: error.message || 'Failed to fetch books.' },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json(data || []);

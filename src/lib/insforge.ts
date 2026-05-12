@@ -9,5 +9,7 @@ export const insforge = createClient({
 // Admin client — for server-side API routes (service role key)
 export const insforgeAdmin = createClient({
   baseUrl: process.env.NEXT_PUBLIC_INSFORGE_URL!,
-  anonKey: process.env.INSFORGE_SERVICE_KEY!,
+  anonKey: process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY!,
+  edgeFunctionToken: process.env.INSFORGE_SERVICE_KEY!,
+  isServerMode: true,
 });

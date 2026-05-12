@@ -31,6 +31,11 @@ export default function AuthPage(){
     }
   }, [searchParams]);
 
+  const getCurrentBearer = () => {
+    const authHeader = insforge.getHttpClient().getHeaders().Authorization;
+    return authHeader?.replace('Bearer ', '') || null;
+  };
+
   const resolveUserRole = async (userId: string, token?: string | null) => {
     const res = await fetch('/api/auth/ensure-profile', {
       method: 'POST',
@@ -72,7 +77,14 @@ export default function AuthPage(){
         return;
       }
 
-      // Refresh once so we can persist the real access token into our app cookie.
+      const currentToken = getCurrentBearer();
+      if (currentToken) {
+        await loginSuccess(data.user, currentToken);
+        setBusy(false);
+        return;
+      }
+
+      // Fall back to refresh when the callback restored the user but did not expose a bearer yet.
       const { data: sessionData, error: sessionError } = await insforge.auth.refreshSession();
 
       if (sessionError || !sessionData?.accessToken || !sessionData?.user) {
