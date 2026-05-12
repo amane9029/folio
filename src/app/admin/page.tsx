@@ -1,20 +1,18 @@
 // @ts-nocheck
 "use client";
 import React, { useState, useMemo, useEffect } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
-import { Button, Input, Modal, TopNav, Toast, PageHeader, DeleteBookModal } from '@/components/shared';
-import { IconUserPlus, IconList, IconClock, IconMail, IconSearch, IconTrash, IconFolder, IconChevLeft, IconChevRight, IconUpload, IconShield, IconLogout, IconCheck, IconClose, IconAlert, IconBook } from '@/components/icons';
+import { useRouter } from 'next/navigation';
+import { AvatarMenu, Button, Input, Modal, Toast, PageHeader, DeleteBookModal } from '@/components/shared';
+import { IconList, IconClock, IconSearch, IconTrash, IconFolder, IconChevLeft, IconChevRight, IconUpload, IconShield, IconLogout, IconCheck, IconClose, IconAlert, IconBook } from '@/components/icons';
 import { INITIAL_BOOKS, fmtSize, fmtDate, fmtRelative, DEMO_ACCOUNTS } from '@/components/data';
 
 const QUOTA_CAP_KB = 256 * 1024;
 
 export default function AdminPage() {
   const router = useRouter();
-  const pathname = usePathname();
   const [user, setUser] = useState({ role: 'admin', email: '...', name: 'Loading' });
   const [books, setBooks] = useState([]);
   const [events, setEvents] = useState<any[]>([]);
-  const [invites, setInvites] = useState<any[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [storageStats, setStorageStats] = useState({ usedBytes: 0, objectCount: 0 });
 
@@ -35,7 +33,14 @@ export default function AdminPage() {
       } catch (e) {}
     }
 
-    setUser({ role, email, name });
+    const initials = (name || email || 'A')
+      .split(/[\s@._-]+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map(part => part[0]?.toUpperCase())
+      .join('') || 'A';
+
+    setUser({ role, email, name, initials });
 
     fetch('/api/books')
       .then(r => r.json())
@@ -93,21 +98,79 @@ export default function AdminPage() {
   };
 
   return (
-    <>
-      <TopNav role={user.role} currentPath={pathname} user={user} onNavigate={(p: string) => router.push(p)} onLogout={onLogout} />
-      <AdminPanel books={books} setBooks={setBooks} events={events} invites={invites} setInvites={setInvites} quotaCapKb={QUOTA_CAP_KB} currentUser={user} pushToast={pushToast} pushEvent={pushEvent} storageStats={storageStats} />
+    <div className="min-h-screen bg-[#050505] text-white relative overflow-hidden" data-accent="admin">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.05),transparent_32%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.03),transparent_28%)]" />
+      <main className="relative z-10 min-h-screen px-0 py-0">
+        <section className="min-h-screen border-y border-white/8 bg-[#0a0a0a]/96 overflow-hidden backdrop-blur-xl">
+          <div className="h-14 border-b border-white/6 bg-white/[0.02] px-4 sm:px-6 flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onLogout}
+                aria-label="Sign out"
+                title="Sign out"
+                className="h-3 w-3 rounded-full bg-[#ff5f57] border border-[#e0443e] shadow-[0_0_0_1px_rgba(0,0,0,0.14)_inset] hover:brightness-110 transition"
+              />
+              <button
+                type="button"
+                onClick={() => router.push('/dashboard')}
+                aria-label="Go to library"
+                title="Go to library"
+                className="h-3 w-3 rounded-full bg-[#febc2e] border border-[#dea123] shadow-[0_0_0_1px_rgba(0,0,0,0.14)_inset] hover:brightness-110 transition"
+              />
+              <button
+                type="button"
+                onClick={() => router.push('/admin')}
+                aria-label="Stay on admin"
+                title="Stay on admin"
+                className="h-3 w-3 rounded-full bg-[#28c840] border border-[#1ea632] shadow-[0_0_0_1px_rgba(0,0,0,0.14)_inset] hover:brightness-110 transition"
+              />
+            </div>
+            <div className="min-w-0 flex-1 flex items-center gap-3 sm:gap-4">
+              <div className="hidden sm:flex items-center gap-3 min-w-0">
+                <img src="/main_logo.svg" alt="Folio" className="h-5 w-5 filter invert opacity-95" />
+                <span className="font-serif font-bold text-[22px] tracking-tight text-white">Folio</span>
+              </div>
+              <div className="min-w-0 flex-1 max-w-xs sm:max-w-md h-8 rounded-lg bg-white/[0.04] border border-white/8 px-3 flex items-center">
+                <span className="truncate text-[11px] text-white/35 font-mono">folio.app/admin</span>
+              </div>
+            </div>
+            <nav className="hidden md:flex items-center gap-7 mr-2">
+              <button
+                type="button"
+                onClick={() => router.push('/dashboard')}
+                className="relative px-1.5 h-14 text-[14px] font-medium tracking-tight text-white/60 hover:text-white transition-colors"
+              >
+                Library
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push('/admin')}
+                className="relative px-1.5 h-14 text-[14px] font-medium tracking-tight text-white"
+              >
+                Admin
+                <span className="absolute left-0 right-0 -bottom-px h-0.5 bg-white" />
+              </button>
+            </nav>
+            <div className="hidden sm:block">
+              <AvatarMenu user={user} onLogout={onLogout} accent="admin" />
+            </div>
+          </div>
+
+          <AdminPanel books={books} setBooks={setBooks} events={events} quotaCapKb={QUOTA_CAP_KB} currentUser={user} pushToast={pushToast} pushEvent={pushEvent} storageStats={storageStats} />
+        </section>
+      </main>
       <Toast toast={toast} />
-    </>
+    </div>
   );
 }
 
-// Admin Panel — stats + tabs (Library / Audit / Invites). Quota meter inline.
+// Admin Panel — stats + tabs (Library / Audit). Quota meter inline.
 
-function AdminPanel({ books, setBooks, events, invites, setInvites, quotaCapKb, currentUser, pushToast, pushEvent, storageStats }){
-  const [tab, setTab] = useState('library'); // library | audit | invites
+function AdminPanel({ books, setBooks, events, quotaCapKb, currentUser, pushToast, pushEvent, storageStats }){
+  const [tab, setTab] = useState('library'); // library | audit
   const [toDelete, setToDelete] = useState(null);
   const [bulkTargets, setBulkTargets] = useState(null); // array of books queued for bulk-delete
-  const [inviteOpen, setInviteOpen] = useState(false);
 
   const stats = useMemo(() => {
     const totalKb = books.reduce((s,b) => s + b.fileSizeKb, 0);
@@ -149,40 +212,13 @@ function AdminPanel({ books, setBooks, events, invites, setInvites, quotaCapKb, 
     }
   };
 
-  const sendInvite = (email, role) => {
-    const inv = {
-      id: 'inv_' + Date.now().toString(36),
-      email, role,
-      invitedBy: currentUser.email,
-      sentAt: new Date().toISOString(),
-      status: 'pending',
-    };
-    setInvites(prev => [inv, ...prev]);
-    pushEvent && pushEvent('invite', currentUser.email, email, { role });
-    pushToast(`Invite sent to ${email}`);
-    setInviteOpen(false);
-  };
-
-  const revokeInvite = (id) => {
-    setInvites(prev => prev.map(i => i.id === id ? { ...i, status: 'revoked' } : i));
-    pushToast('Invite revoked');
-  };
-  const resendInvite = (inv) => {
-    setInvites(prev => prev.map(i => i.id === inv.id ? { ...i, sentAt: new Date().toISOString(), status: 'pending' } : i));
-    pushToast(`Invite resent to ${inv.email}`);
-  };
-
   return (
-    <div className="min-h-screen bg-bg" data-accent="admin">
-      <main className="max-w-[1400px] mx-auto px-6 pt-10 pb-20">
+    <div className="relative min-h-[calc(100vh-3.5rem)] p-6 sm:p-8 md:p-12" data-accent="admin">
+      <div className="pointer-events-none absolute top-[-35%] right-[-10%] h-[70%] w-[45%] rounded-full bg-white/[0.03] blur-[90px]" />
+      <main className="relative z-10 max-w-[1400px] mx-auto">
         <PageHeader
           title="Admin Panel"
-          subtitle="Manage uploaded EPUB records, audit activity, and invite new readers."
-          right={
-            <Button onClick={() => setInviteOpen(true)} accent="admin">
-              <IconUserPlus size={16}/> Invite reader
-            </Button>
-          }
+          subtitle="Manage uploaded EPUB records and audit activity."
         />
 
         {/* Stats row */}
@@ -197,7 +233,6 @@ function AdminPanel({ books, setBooks, events, invites, setInvites, quotaCapKb, 
         <div className="flex items-center gap-1 mb-5 border-b border-ink/15">
           <Tab active={tab==='library'} onClick={() => setTab('library')} icon={<IconList size={14}/>}    label="Library"      count={books.length}/>
           <Tab active={tab==='audit'}   onClick={() => setTab('audit')}   icon={<IconClock size={14}/>}   label="Audit log"    count={events.length}/>
-          <Tab active={tab==='invites'} onClick={() => setTab('invites')} icon={<IconMail size={14}/>}    label="Invites"      count={invites.filter(i => i.status === 'pending').length}/>
         </div>
 
         {tab === 'library' && (
@@ -206,14 +241,10 @@ function AdminPanel({ books, setBooks, events, invites, setInvites, quotaCapKb, 
         {tab === 'audit' && (
           <AuditLogTab events={events}/>
         )}
-        {tab === 'invites' && (
-          <InvitesTab invites={invites} onRevoke={revokeInvite} onResend={resendInvite} onNew={() => setInviteOpen(true)}/>
-        )}
       </main>
 
       <DeleteBookModal book={toDelete} onClose={() => setToDelete(null)} onConfirm={confirmDelete} accent="admin"/>
       <BulkDeleteModal books={bulkTargets} onClose={() => setBulkTargets(null)} onConfirm={confirmBulkDelete}/>
-      <InviteModal open={inviteOpen} onClose={() => setInviteOpen(false)} onSend={sendInvite} existing={invites}/>
     </div>
   );
 }
@@ -460,7 +491,6 @@ function AuditLogTab({ events }){
     { id:'all',    label:'All activity' },
     { id:'upload', label:'Uploads' },
     { id:'delete', label:'Deletions' },
-    { id:'invite', label:'Invites' },
     { id:'login',  label:'Sign-ins' },
   ];
   const visible = events.filter(e => filter === 'all' || e.kind === filter);
@@ -519,7 +549,6 @@ function AuditRow({ ev }){
   const cfg = {
     upload: { label:'Uploaded',     icon:<IconUpload size={13}/>, tone:'text-ink' },
     delete: { label:'Deleted',      icon:<IconTrash size={13}/>,  tone:'text-crimson' },
-    invite: { label:'Invited',      icon:<IconUserPlus size={13}/>, tone:'text-ink' },
     login:  { label:'Signed in',    icon:<IconShield size={13}/>, tone:'text-ink/75' },
     logout: { label:'Signed out',   icon:<IconLogout size={13}/>, tone:'text-ink/75' },
   }[ev.kind] || { label:ev.kind, icon:<IconClock size={13}/>, tone:'text-ink' };
@@ -556,51 +585,6 @@ function dayLabel(d){
   return d.toLocaleDateString('en-US', { month:'long', day:'numeric', year:'numeric' });
 }
 
-// ---------- Invites tab ----------
-function InvitesTab({ invites, onRevoke, onResend, onNew }){
-  const tally = useMemo(() => ({
-    pending:  invites.filter(i => i.status === 'pending').length,
-    accepted: invites.filter(i => i.status === 'accepted').length,
-    expired:  invites.filter(i => i.status === 'expired' || i.status === 'revoked').length,
-  }), [invites]);
-
-  return (
-    <div>
-      <div className="grid grid-cols-3 gap-4 mb-5">
-        <MiniStat label="Pending"  value={tally.pending}  tone="ok"/>
-        <MiniStat label="Accepted" value={tally.accepted} tone="ok"/>
-        <MiniStat label="Expired / Revoked" value={tally.expired} tone="muted"/>
-      </div>
-
-      <div className="bg-surface rounded-xl shadow-card overflow-hidden">
-        <div className="px-5 py-3 border-b border-ink/15 flex items-center justify-between">
-          <div className="text-[13px] text-ink/75">All invites are single-use and expire after 7 days.</div>
-          <Button onClick={onNew} accent="admin" size="sm"><IconUserPlus size={14}/> New invite</Button>
-        </div>
-        {invites.length === 0 ? (
-          <div className="py-16 text-center">
-            <div className="font-serif text-[18px] text-ink mb-1">No invites yet.</div>
-            <div className="text-[13px] text-ink/65">Send your first invite to onboard a reader.</div>
-          </div>
-        ) : (
-          <ul className="divide-y divide-ink/10">
-            {invites.map(inv => <InviteRow key={inv.id} inv={inv} onRevoke={onRevoke} onResend={onResend}/>)}
-          </ul>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function MiniStat({ label, value, tone = 'ok' }){
-  const valColor = tone === 'muted' ? 'text-ink/55' : 'text-ink';
-  return (
-    <div className="bg-surface rounded-xl shadow-card px-5 py-3.5">
-      <div className={`font-serif font-semibold ${valColor} text-[28px] leading-none tabular-nums`}>{value}</div>
-      <div className="mt-1.5 text-[11px] uppercase tracking-[0.16em] text-ink/65">{label}</div>
-    </div>
-  );
-}
 
 function InviteRow({ inv, onRevoke, onResend }){
   const statusCfg = {
@@ -908,5 +892,3 @@ function BulkDeleteModal({ books, onClose, onConfirm }){
     </Modal>
   );
 }
-
-

@@ -85,6 +85,7 @@ export function AvatarMenu({ user, onLogout, accent = 'user' }: any){
   return (
     <div className="relative" ref={ref}>
       <button
+        type="button"
         onClick={() => setOpen(o => !o)}
         className="flex items-center gap-2 group cursor-pointer"
         aria-haspopup="menu"
@@ -96,7 +97,7 @@ export function AvatarMenu({ user, onLogout, accent = 'user' }: any){
         <IconChevDown size={16} className={`chev text-ink/70 transition-transform ${open ? 'rotate-180' : ''}`}/>
       </button>
       {open && (
-        <div className="absolute right-0 mt-2 w-56 bg-surface rounded-xl shadow-lift overflow-hidden animate-modal-in">
+        <div className="absolute right-0 mt-2 w-56 z-[70] bg-surface rounded-xl shadow-lift overflow-hidden animate-modal-in pointer-events-auto">
           <div className="px-4 py-3 border-b border-ink/15">
             <div className="text-sm font-semibold text-ink">{user.name}</div>
             <div className="text-xs text-ink/70 truncate">{user.email}</div>
@@ -107,7 +108,11 @@ export function AvatarMenu({ user, onLogout, accent = 'user' }: any){
             </div>
           </div>
           <button
-            onClick={onLogout}
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              onLogout?.();
+            }}
             className="w-full px-4 py-2.5 text-left text-sm text-ink hover:bg-secondary/30 flex items-center gap-2 transition cursor-pointer"
           >
             <IconLogout size={16}/> Sign out

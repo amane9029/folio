@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@insforge/sdk';
 
+function decodeJwtPayload(token: string) {
+  const parts = token.split('.');
+  if (parts.length !== 3) throw new Error('bad jwt');
+
+  const base64Url = parts[1];
+  const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
+
+  return JSON.parse(Buffer.from(padded, 'base64').toString('utf-8'));
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Try getting token from cookie first, then Authorization header
@@ -18,9 +29,7 @@ export async function POST(request: NextRequest) {
     // Decode JWT manually to get userId (don't use getUser yet)
     let userId: string | null = null;
     try {
-      const parts = token.split('.');
-      if (parts.length !== 3) throw new Error('bad jwt');
-      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf-8'));
+      const payload = decodeJwtPayload(token);
       userId = payload.sub || null;
       console.log('userId:', userId);
       console.log('token expired:', payload.exp < Math.floor(Date.now()/1000));

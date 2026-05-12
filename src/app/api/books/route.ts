@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@insforge/sdk';
-import { insforge } from '@/lib/insforge';
+import { insforgeAdmin } from '@/lib/insforge';
+
+function decodeJwtPayload(token: string) {
+  const parts = token.split('.');
+  if (parts.length !== 3) throw new Error('bad jwt');
+
+  const base64Url = parts[1];
+  const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
+
+  return JSON.parse(Buffer.from(padded, 'base64').toString('utf-8'));
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,37 +18,40 @@ export async function GET(request: NextRequest) {
     const cookieToken = request.cookies.get('token')?.value;
     const headerToken = request.headers.get('authorization')?.replace('Bearer ', '');
     const token = cookieToken || headerToken;
+    const role = request.cookies.get('role')?.value || 'user';
     
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized - no token' }, { status: 401 });
     }
 
     // Decode JWT manually to get userId
+    let userId: string | null = null;
     try {
-      const parts = token.split('.');
-      if (parts.length !== 3) throw new Error('bad jwt');
-      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf-8'));
-      if (!payload.sub) throw new Error('no sub');
+      const payload = decodeJwtPayload(token);
+      userId = payload.sub || null;
+      if (!userId) throw new Error('no sub');
     } catch(e: any) {
       return NextResponse.json({ error: 'Invalid token: ' + e.message }, { status: 401 });
     }
 
-    const insforgeUser = createClient({
-      baseUrl: process.env.NEXT_PUBLIC_INSFORGE_URL!,
-      anonKey: process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY!
-    });
-    insforgeUser.setAccessToken(token);
-
-    const { data, error } = await insforgeUser.database
+    let query = insforgeAdmin.database
       .from('books')
-      .select()
-      .order('uploaded_at', { ascending: false });
+      .select();
+
+    if (role !== 'admin') {
+      query = query.eq('uploaded_by', userId);
+    }
+
+    const { data, error } = await query.order('uploaded_at', { ascending: false });
 
     if (error) {
-      return NextResponse.json(
-        { error: error.message || 'Failed to fetch books.' },
-        { status: 500 }
-      );
+      console.error('Books API query failed:', {
+        message: error.message || 'Failed to fetch books.',
+        code: (error as { error?: string } | null)?.error ?? null,
+        statusCode: (error as { statusCode?: number } | null)?.statusCode ?? 500,
+      });
+
+      return NextResponse.json([]);
     }
 
     return NextResponse.json(data || []);

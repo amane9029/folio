@@ -2,6 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@insforge/sdk';
 import { insforge } from '@/lib/insforge';
 
+function decodeJwtPayload(token: string) {
+  const parts = token.split('.');
+  if (parts.length !== 3) throw new Error('bad jwt');
+
+  const base64Url = parts[1];
+  const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
+
+  return JSON.parse(Buffer.from(padded, 'base64').toString('utf-8'));
+}
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -18,9 +29,7 @@ export async function DELETE(
 
     // Decode JWT manually to get userId
     try {
-      const parts = token.split('.');
-      if (parts.length !== 3) throw new Error('bad jwt');
-      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf-8'));
+      const payload = decodeJwtPayload(token);
       if (!payload.sub) throw new Error('no sub');
     } catch(e: any) {
       return NextResponse.json({ error: 'Invalid token: ' + e.message }, { status: 401 });

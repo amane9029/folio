@@ -31,45 +31,77 @@ export default function AuthPage(){
     }
   }, [searchParams]);
 
+  const resolveUserRole = async (userId: string, token?: string | null) => {
+    const res = await fetch('/api/auth/ensure-profile', {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      credentials: 'same-origin',
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      return data.role || 'user';
+    }
+
+    const { data: profile, error: profileError } = await insforge.database
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .single();
+
+    if (!profileError && profile?.role) {
+      return profile.role;
+    }
+
+    await insforge.database
+      .from('profiles')
+      .insert([{ id: userId, role: 'user' }]);
+
+    return 'user';
+  };
+
   const handleOAuthCallback = async () => {
     setBusy(true);
     try {
-      // The SDK handles the code exchange automatically via getCurrentUser
-      const { data } = await insforge.auth.getCurrentUser();
-      if (data?.user) {
-        await loginSuccess(data.user);
+      // Wait for the SDK to finish the PKCE exchange and restore the user.
+      const { data, error: authError } = await insforge.auth.getCurrentUser();
+
+      if (authError || !data?.user) {
+        setError(authError?.message || 'OAuth sign-in failed. Please try again.');
+        setBusy(false);
+        return;
       }
+
+      // Refresh once so we can persist the real access token into our app cookie.
+      const { data: sessionData, error: sessionError } = await insforge.auth.refreshSession();
+
+      if (sessionError || !sessionData?.accessToken || !sessionData?.user) {
+        setError(sessionError?.message || 'Google sign-in finished, but no session token was available.');
+        setBusy(false);
+        return;
+      }
+
+      await loginSuccess(sessionData.user, sessionData.accessToken);
     } catch {
       setError('OAuth sign-in failed. Please try again.');
     }
     setBusy(false);
   };
 
-  const loginSuccess = async (user: any) => {
-    // Get access token - need to sign in again or use the token from the session
-    const token = (insforge as any).getHttpClient?.()?.authToken;
+  const loginSuccess = async (user: any, token?: string | null) => {
+    const accessToken = token || null;
 
-    if (token) {
-      document.cookie = `token=${token}; path=/; max-age=${60 * 60 * 24 * 7}; samesite=lax`;
+    if (accessToken) {
+      document.cookie = `token=${accessToken}; path=/; max-age=${60 * 60 * 24 * 7}; samesite=lax`;
+      insforge.setAccessToken(accessToken);
+    } else {
+      setError('No session token was available.');
+      return;
     }
 
     // Ensure profile exists (upsert)
     try {
-      insforge.setAccessToken(token);
-      const { data: existingProfile } = await insforge.database
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-      if (!existingProfile) {
-        // Create profile for new user
-        await insforge.database
-          .from('profiles')
-          .insert([{ id: user.id, role: 'user' }]);
-      }
-
-      const role = existingProfile?.role || 'user';
+      const role = await resolveUserRole(user.id, accessToken);
       document.cookie = `role=${role}; path=/; max-age=${60 * 60 * 24 * 7}; samesite=lax`;
 
       if (role === 'admin') {
@@ -105,14 +137,7 @@ export default function AuthPage(){
       document.cookie = `token=${token}; path=/; max-age=${60 * 60 * 24 * 7}; samesite=lax`;
       insforge.setAccessToken(token);
 
-      // Fetch role from profiles
-      const { data: profile } = await insforge.database
-        .from('profiles')
-        .select('role')
-        .eq('id', data.user.id)
-        .single();
-
-      const role = profile?.role || 'user';
+      const role = await resolveUserRole(data.user.id, token);
       document.cookie = `role=${role}; path=/; max-age=${60 * 60 * 24 * 7}; samesite=lax`;
 
       if (role === 'admin') {
@@ -157,14 +182,8 @@ export default function AuthPage(){
         document.cookie = `token=${token}; path=/; max-age=${60 * 60 * 24 * 7}; samesite=lax`;
         insforge.setAccessToken(token);
 
-        // Create profile
-        if (data.user) {
-          await insforge.database
-            .from('profiles')
-            .insert([{ id: data.user.id, role: 'user' }]);
-        }
-
-        document.cookie = `role=user; path=/; max-age=${60 * 60 * 24 * 7}; samesite=lax`;
+        const role = data.user ? await resolveUserRole(data.user.id, token) : 'user';
+        document.cookie = `role=${role}; path=/; max-age=${60 * 60 * 24 * 7}; samesite=lax`;
         router.push('/dashboard');
       }
     } catch {
@@ -195,14 +214,8 @@ export default function AuthPage(){
         document.cookie = `token=${token}; path=/; max-age=${60 * 60 * 24 * 7}; samesite=lax`;
         insforge.setAccessToken(token);
 
-        // Create profile for verified user
-        if (data.user) {
-          await insforge.database
-            .from('profiles')
-            .insert([{ id: data.user.id, role: 'user' }]);
-        }
-
-        document.cookie = `role=user; path=/; max-age=${60 * 60 * 24 * 7}; samesite=lax`;
+        const role = data.user ? await resolveUserRole(data.user.id, token) : 'user';
+        document.cookie = `role=${role}; path=/; max-age=${60 * 60 * 24 * 7}; samesite=lax`;
         router.push('/dashboard');
       }
     } catch {
