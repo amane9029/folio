@@ -20,7 +20,7 @@ import {
   IconTranslate,
   IconLogout,
 } from "@/components/icons";
-import { fmtSize, fmtDate, needsTranslation } from "@/components/data";
+import { insforge } from "@/lib/insforge";
 import JSZip from "jszip";
 
 export default function DashboardClient({ initialBooks }: { initialBooks: any[] }) {
@@ -64,12 +64,6 @@ export default function DashboardClient({ initialBooks }: { initialBooks: any[] 
 
     const hydrateUser = async () => {
       try {
-        const { createClient } = await import("@insforge/sdk");
-        const insforge = createClient({
-          baseUrl: process.env.NEXT_PUBLIC_INSFORGE_URL!,
-          anonKey: process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY!,
-        });
-
         const tokenMatch = document.cookie.match(/token=([^;]+)/);
         if (tokenMatch) {
           insforge.setAccessToken(tokenMatch[1]);
@@ -162,11 +156,6 @@ export default function DashboardClient({ initialBooks }: { initialBooks: any[] 
 
   const onLogout = async () => {
     try {
-      const { createClient } = await import("@insforge/sdk");
-      const insforge = createClient({
-        baseUrl: process.env.NEXT_PUBLIC_INSFORGE_URL!,
-        anonKey: process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY!,
-      });
       await insforge.auth.signOut();
     } catch (e) {
       console.error("Logout error", e);

@@ -3,14 +3,9 @@ import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Input } from '@/components/shared';
 import { IconAlert, IconLoader } from '@/components/icons';
-import { createClient } from '@insforge/sdk';
+import { insforge } from '@/lib/insforge';
 
-const insforge = createClient({
-  baseUrl: process.env.NEXT_PUBLIC_INSFORGE_URL!,
-  anonKey: process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY!,
-});
-
-export default function AuthPage(){
+export default function AuthPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
@@ -18,23 +13,61 @@ export default function AuthPage(){
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
+
+  const [isOauthCallback, setIsOauthCallback] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      return !!(params.get('insforge_code') || hashParams.get('insforge_code'));
+    }
+    return false;
+  });
+
+  const [busy, setBusy] = useState(isOauthCallback);
   const [verifyMode, setVerifyMode] = useState(false);
   const [verifyEmail, setVerifyEmail] = useState('');
   const [otp, setOtp] = useState('');
-
-  // Handle OAuth callback (insforge_code in URL)
-  useEffect(() => {
-    const code = searchParams.get('insforge_code');
-    if (code) {
-      handleOAuthCallback();
-    }
-  }, [searchParams]);
+  const handledCode = React.useRef<string | null>(null);
 
   const getCurrentBearer = () => {
-    const authHeader = insforge.getHttpClient().getHeaders().Authorization;
-    return authHeader?.replace('Bearer ', '') || null;
+    try {
+      const authHeader = insforge.getHttpClient().getHeaders().Authorization;
+      return authHeader?.replace('Bearer ', '') || null;
+    } catch (e) {
+      return null;
+    }
   };
+
+  // Check for session on mount and handle OAuth callback
+  useEffect(() => {
+    let mounted = true;
+
+    const initializeAuth = async () => {
+      // 1. Check for insforge_code in either query or hash
+      const params = new URLSearchParams(window.location.search);
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const code = params.get('insforge_code') || hashParams.get('insforge_code');
+
+      if (code && handledCode.current !== code) {
+        handledCode.current = code;
+        await handleOAuthCallback(code);
+        return;
+      }
+
+      // 2. If no code, check if we already have a session (e.g. from automatic SDK exchange or returning user)
+      const { data } = await insforge.auth.getCurrentUser();
+      const token = getCurrentBearer();
+      if (mounted && data?.user && token) {
+        await loginSuccess(data.user, token);
+      }
+    };
+
+    initializeAuth();
+
+    return () => {
+      mounted = false;
+    };
+  }, [searchParams]);
 
   const resolveUserRole = async (userId: string, token?: string | null) => {
     const res = await fetch('/api/auth/ensure-profile', {
@@ -65,37 +98,51 @@ export default function AuthPage(){
     return 'user';
   };
 
-  const handleOAuthCallback = async () => {
+  const handleOAuthCallback = async (code: string) => {
     setBusy(true);
     try {
-      // Wait for the SDK to finish the PKCE exchange and restore the user.
-      const { data, error: authError } = await insforge.auth.getCurrentUser();
+      let token = getCurrentBearer();
+      let user = null;
 
-      if (authError || !data?.user) {
-        setError(authError?.message || 'OAuth sign-in failed. Please try again.');
-        setBusy(false);
-        return;
+      // 1. Wait for the SDK's automatic exchange
+      const { data: userData } = await insforge.auth.getCurrentUser();
+      user = userData?.user;
+      token = getCurrentBearer() || token;
+
+      // 2. If token is still missing, try manual exchange
+      if (!token || !user) {
+        try {
+          const { data: exchangeData } = await insforge.auth.exchangeOAuthCode(code);
+          if (exchangeData?.accessToken) {
+            token = exchangeData.accessToken;
+            user = exchangeData.user;
+          }
+        } catch (e) {
+          console.warn('Manual exchange skipped:', e);
+        }
       }
 
-      const currentToken = getCurrentBearer();
-      if (currentToken) {
-        await loginSuccess(data.user, currentToken);
-        setBusy(false);
-        return;
+      // 3. If token is STILL missing, try refresh
+      if (!token || !user) {
+        try {
+          const { data: sessionData } = await insforge.auth.refreshSession();
+          if (sessionData?.accessToken) {
+            token = sessionData.accessToken;
+            user = sessionData.user;
+          }
+        } catch (e) {
+          console.warn('Session refresh skipped:', e);
+        }
       }
 
-      // Fall back to refresh when the callback restored the user but did not expose a bearer yet.
-      const { data: sessionData, error: sessionError } = await insforge.auth.refreshSession();
-
-      if (sessionError || !sessionData?.accessToken || !sessionData?.user) {
-        setError(sessionError?.message || 'Google sign-in finished, but no session token was available.');
-        setBusy(false);
-        return;
+      if (user && token) {
+        await loginSuccess(user, token);
+      } else {
+        setError('OAuth sign-in failed. Please try again.');
       }
-
-      await loginSuccess(sessionData.user, sessionData.accessToken);
-    } catch {
-      setError('OAuth sign-in failed. Please try again.');
+    } catch (e: any) {
+      console.error('OAuth callback error:', e);
+      setError('OAuth sign-in failed: ' + (e.message || 'Unknown error'));
     }
     setBusy(false);
   };
@@ -240,7 +287,7 @@ export default function AuthPage(){
     try {
       await insforge.auth.resendVerificationEmail({ email: verifyEmail });
       setError('');
-    } catch {}
+    } catch { }
   };
 
   const signInWithGoogle = async () => {
@@ -284,7 +331,7 @@ export default function AuthPage(){
 
             {error && (
               <div className="mt-4 text-[13px] text-crimson flex items-center gap-2">
-                <IconAlert size={14}/> {error}
+                <IconAlert size={14} /> {error}
               </div>
             )}
 
@@ -293,7 +340,7 @@ export default function AuthPage(){
               disabled={busy || otp.trim().length < 6}
               className="w-full mt-6 inline-flex items-center justify-center gap-2 h-12 px-5 rounded-lg font-bold text-[15px] bg-white text-black transition hover:bg-white/90 active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(255,255,255,0.1)]"
             >
-              {busy ? <><IconLoader size={16}/> Verifying…</> : 'Verify & Sign In'}
+              {busy ? <><IconLoader size={16} /> Verifying…</> : 'Verify & Sign In'}
             </button>
 
             <div className="mt-4 text-center">
@@ -317,112 +364,121 @@ export default function AuthPage(){
   return (
     <div className="min-h-screen bg-bg flex items-center justify-center px-4 py-10" data-accent="user">
       <div className="w-full max-w-[420px]">
-        <form
-          onSubmit={mode === 'signin' ? submitSignIn : submitSignUp}
-          className="bg-surface rounded-2xl shadow-card p-8 sm:p-10"
-        >
-          <div className="text-center mb-8">
-            <img src="/logo_with_text.svg" alt="Folio" className="h-24 mx-auto filter invert opacity-90" />
-            <div className="mt-3 text-[12px] uppercase tracking-[0.22em] text-ink/65">EPUB Library Manager</div>
+        {isOauthCallback && !error ? (
+          <div className="bg-surface rounded-2xl shadow-card p-12 text-center flex flex-col items-center justify-center min-h-[400px]">
+            <img src="/logo_with_text.svg" alt="Folio" className="h-16 filter invert opacity-90 mb-8 animate-pulse" />
+            <IconLoader size={28} className="text-ink/60 mb-5" />
+            <div className="text-[15px] font-medium text-ink/90">Completing sign in...</div>
+            <div className="text-[13px] text-ink/50 mt-2">Please wait while we connect your account.</div>
           </div>
+        ) : (
+          <form
+            onSubmit={mode === 'signin' ? submitSignIn : submitSignUp}
+            className="bg-surface rounded-2xl shadow-card p-8 sm:p-10"
+          >
+            <div className="text-center mb-8">
+              <img src="/logo_with_text.svg" alt="Folio" className="h-24 mx-auto filter invert opacity-90" />
+              <div className="mt-3 text-[12px] uppercase tracking-[0.22em] text-ink/65">EPUB Library Manager</div>
+            </div>
 
-          {/* Mode toggle */}
-          <div className="flex rounded-lg bg-bg overflow-hidden mb-6 border border-ink/15">
+            {/* Mode toggle */}
+            <div className="flex rounded-lg bg-bg overflow-hidden mb-6 border border-ink/15">
+              <button
+                type="button"
+                onClick={() => { setMode('signin'); setError(''); }}
+                className={`flex-1 h-10 text-[13px] font-medium transition cursor-pointer ${mode === 'signin' ? 'bg-white text-ink-invert' : 'text-ink/70 hover:text-ink'}`}
+              >
+                Sign In
+              </button>
+              <button
+                type="button"
+                onClick={() => { setMode('signup'); setError(''); }}
+                className={`flex-1 h-10 text-[13px] font-medium transition cursor-pointer ${mode === 'signup' ? 'bg-white text-ink-invert' : 'text-ink/70 hover:text-ink'}`}
+              >
+                Sign Up
+              </button>
+            </div>
+
+            {/* Google OAuth */}
             <button
               type="button"
-              onClick={() => { setMode('signin'); setError(''); }}
-              className={`flex-1 h-10 text-[13px] font-medium transition cursor-pointer ${mode === 'signin' ? 'bg-white text-ink-invert' : 'text-ink/70 hover:text-ink'}`}
+              onClick={signInWithGoogle}
+              disabled={busy}
+              className="w-full h-11 rounded-lg border border-ink/20 bg-surface hover:bg-secondary text-[14px] font-medium text-ink inline-flex items-center justify-center gap-3 transition cursor-pointer disabled:opacity-60 mb-5"
             >
-              Sign In
+              <svg width="18" height="18" viewBox="0 0 48 48">
+                <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+                <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+                <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+                <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+              </svg>
+              Continue with Google
             </button>
+
+            <div className="flex items-center gap-3 mb-5">
+              <div className="flex-1 h-px bg-ink/15" />
+              <span className="text-[11px] uppercase tracking-[0.16em] text-ink/50">or</span>
+              <div className="flex-1 h-px bg-ink/15" />
+            </div>
+
+            {/* Name field (sign up only) */}
+            {mode === 'signup' && (
+              <>
+                <label className="block text-[12px] font-medium text-ink/80 uppercase tracking-wider mb-1.5">Name</label>
+                <Input
+                  type="text"
+                  value={name}
+                  onChange={(e: any) => setName(e.target.value)}
+                  placeholder="Your name"
+                  autoComplete="name"
+                />
+                <div className="mt-4" />
+              </>
+            )}
+
+            <label className="block text-[12px] font-medium text-ink/80 uppercase tracking-wider mb-1.5">Email</label>
+            <Input
+              type="email"
+              value={email}
+              onChange={(e: any) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              autoComplete="email"
+              required
+            />
+
+            <label className="block text-[12px] font-medium text-ink/80 uppercase tracking-wider mb-1.5 mt-4">Password</label>
+            <Input
+              type="password"
+              value={password}
+              onChange={(e: any) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+              required
+            />
+
+            {error && (
+              <div className="mt-4 text-[13px] text-crimson flex items-center gap-2">
+                <IconAlert size={14} /> {error}
+              </div>
+            )}
+
             <button
-              type="button"
-              onClick={() => { setMode('signup'); setError(''); }}
-              className={`flex-1 h-10 text-[13px] font-medium transition cursor-pointer ${mode === 'signup' ? 'bg-white text-ink-invert' : 'text-ink/70 hover:text-ink'}`}
+              type="submit"
+              disabled={busy}
+              className="w-full mt-6 inline-flex items-center justify-center gap-2 h-12 px-5 rounded-lg font-bold text-[15px] bg-white text-black transition hover:bg-white/90 active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(255,255,255,0.1)]"
             >
-              Sign Up
+              {busy
+                ? <><IconLoader size={16} /> {mode === 'signin' ? 'Signing in…' : 'Creating account…'}</>
+                : mode === 'signin' ? 'Sign In' : 'Create Account'}
             </button>
-          </div>
 
-          {/* Google OAuth */}
-          <button
-            type="button"
-            onClick={signInWithGoogle}
-            disabled={busy}
-            className="w-full h-11 rounded-lg border border-ink/20 bg-surface hover:bg-secondary text-[14px] font-medium text-ink inline-flex items-center justify-center gap-3 transition cursor-pointer disabled:opacity-60 mb-5"
-          >
-            <svg width="18" height="18" viewBox="0 0 48 48">
-              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-            </svg>
-            Continue with Google
-          </button>
-
-          <div className="flex items-center gap-3 mb-5">
-            <div className="flex-1 h-px bg-ink/15"/>
-            <span className="text-[11px] uppercase tracking-[0.16em] text-ink/50">or</span>
-            <div className="flex-1 h-px bg-ink/15"/>
-          </div>
-
-          {/* Name field (sign up only) */}
-          {mode === 'signup' && (
-            <>
-              <label className="block text-[12px] font-medium text-ink/80 uppercase tracking-wider mb-1.5">Name</label>
-              <Input
-                type="text"
-                value={name}
-                onChange={(e: any) => setName(e.target.value)}
-                placeholder="Your name"
-                autoComplete="name"
-              />
-              <div className="mt-4"/>
-            </>
-          )}
-
-          <label className="block text-[12px] font-medium text-ink/80 uppercase tracking-wider mb-1.5">Email</label>
-          <Input
-            type="email"
-            value={email}
-            onChange={(e: any) => setEmail(e.target.value)}
-            placeholder="you@example.com"
-            autoComplete="email"
-            required
-          />
-
-          <label className="block text-[12px] font-medium text-ink/80 uppercase tracking-wider mb-1.5 mt-4">Password</label>
-          <Input
-            type="password"
-            value={password}
-            onChange={(e: any) => setPassword(e.target.value)}
-            placeholder="••••••••"
-            autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-            required
-          />
-
-          {error && (
-            <div className="mt-4 text-[13px] text-crimson flex items-center gap-2">
-              <IconAlert size={14}/> {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={busy}
-            className="w-full mt-6 inline-flex items-center justify-center gap-2 h-12 px-5 rounded-lg font-bold text-[15px] bg-white text-black transition hover:bg-white/90 active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(255,255,255,0.1)]"
-          >
-            {busy
-              ? <><IconLoader size={16}/> {mode === 'signin' ? 'Signing in…' : 'Creating account…'}</>
-              : mode === 'signin' ? 'Sign In' : 'Create Account'}
-          </button>
-
-          {mode === 'signup' && (
-            <div className="mt-4 text-[11px] text-ink/50 text-center leading-relaxed">
-              By signing up you agree to our Terms of Service.
-            </div>
-          )}
-        </form>
+            {mode === 'signup' && (
+              <div className="mt-4 text-[11px] text-ink/50 text-center leading-relaxed">
+                By signing up you agree to our Terms of Service.
+              </div>
+            )}
+          </form>
+        )}
 
         <div className="mt-5 text-center text-[11px] text-ink/55 tracking-wider">
           © 2026 · FOLIO
