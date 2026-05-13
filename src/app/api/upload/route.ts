@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { insforgeAdmin } from '@/lib/insforge';
 import {
   createUserScopedClient,
   decodeJwtPayload,
@@ -38,14 +39,14 @@ export async function POST(request: NextRequest) {
     if (cover && cover.size > 0) {
       try {
         const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
-        const { data: uploadData, error: uploadError } = await userClient.storage
+        const { data: uploadData, error: uploadError } = await insforgeAdmin.storage
           .from('covers')
           .upload(path, cover);
 
         if (uploadError) {
           console.error('Cover upload error:', uploadError);
         } else if (uploadData) {
-          coverUrl = uploadData.url || null;
+          coverUrl = uploadData.url || insforgeAdmin.storage.from('covers').getPublicUrl(uploadData.key || path);
           coverKey = uploadData.key || path;
         }
       } catch (storageErr) {

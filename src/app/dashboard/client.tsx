@@ -39,6 +39,20 @@ const fmtDate = (dateStr?: string) => {
   });
 };
 
+const NON_LATIN_RE = /[\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF\uAC00-\uD7AF\u0400-\u04FF\u0590-\u06FF\u0900-\u097F\u0370-\u03FF\u0E00-\u0E7F]/;
+
+const needsTranslation = (title?: string) => {
+  if (!title) return false;
+  return NON_LATIN_RE.test(title);
+};
+
+const toCoverSrc = (book: { id: string; cover_url?: string | null }) => {
+  if (!book.cover_url) return "";
+  return book.cover_url.includes('/objects/')
+    ? `/api/books/${book.id}/cover`
+    : book.cover_url;
+};
+
 export default function DashboardClient({ initialBooks }: { initialBooks: any[] }) {
   const router = useRouter();
   const [user, setUser] = useState({ role: "user", email: "...", name: "Loading" });
@@ -123,7 +137,7 @@ export default function DashboardClient({ initialBooks }: { initialBooks: any[] 
             id: b.id,
             title: b.title,
             subfolder: b.subfolder || "Unsorted",
-            cover: b.cover_url || "",
+            cover: toCoverSrc(b),
             fileSizeKb: b.file_size_kb,
             uploadedAt: b.uploaded_at,
             uploadedBy: b.user_id || b.uploaded_by,
@@ -304,10 +318,57 @@ function UserDashboard({ user, books, setBooks, pushToast, onLogout }) {
               }
 
               const extractCover = async () => {
-                const coverItem = opf.querySelector('item[properties="cover-image"]');
-                if (coverItem) {
-                  const href = coverItem.getAttribute("href");
-                  const file = zip.file(opfDir + href) || zip.file(opfDir + decodeURIComponent(href));
+                const normalizeZipPath = (value = "") =>
+                  value
+                    .replace(/\\/g, "/")
+                    .split("/")
+                    .reduce((parts, part) => {
+                      if (!part || part === ".") return parts;
+                      if (part === "..") {
+                        parts.pop();
+                        return parts;
+                      }
+                      parts.push(part);
+                      return parts;
+                    }, [] as string[])
+                    .join("/");
+
+                const resolveZipFile = (href?: string | null, baseDir = opfDir) => {
+                  if (!href) return null;
+
+                  const decodedHref = decodeURIComponent(href);
+                  const candidates = [
+                    normalizeZipPath(baseDir + href),
+                    normalizeZipPath(baseDir + decodedHref),
+                    normalizeZipPath(href),
+                    normalizeZipPath(decodedHref),
+                  ];
+
+                  for (const candidate of candidates) {
+                    const file = zip.file(candidate);
+                    if (file) return file;
+                  }
+
+                  const filename = decodedHref.split("/").pop();
+                  if (!filename) return null;
+
+                  const fuzzyMatch = Object.keys(zip.files).find((path) =>
+                    path.toLowerCase().endsWith(filename.toLowerCase()),
+                  );
+
+                  return fuzzyMatch ? zip.file(fuzzyMatch) : null;
+                };
+
+                const allItems = Array.from(opf.querySelectorAll("item"));
+                const imageItems = allItems.filter((item) =>
+                  item.getAttribute("media-type")?.startsWith("image/"),
+                );
+
+                const preferredItem = imageItems.find((item) =>
+                  item.getAttribute("properties")?.includes("cover-image"),
+                );
+                if (preferredItem) {
+                  const file = resolveZipFile(preferredItem.getAttribute("href"));
                   if (file) return await file.async("blob");
                 }
 
@@ -316,55 +377,72 @@ function UserDashboard({ user, books, setBooks, pushToast, onLogout }) {
                   const coverId = coverMeta.getAttribute("content");
                   const item = opf.querySelector(`item[id="${coverId}"]`);
                   if (item) {
-                    const href = item.getAttribute("href");
-                    const file = zip.file(opfDir + href) || zip.file(opfDir + decodeURIComponent(href));
+                    const file = resolveZipFile(item.getAttribute("href"));
                     if (file) return await file.async("blob");
                   }
                 }
 
-                const allItems = Array.from(opf.querySelectorAll("item"));
-                const coverLikeItem = allItems.find(
-                  (i) =>
-                    (i.getAttribute("id")?.toLowerCase().includes("cover") ||
-                      i.getAttribute("href")?.toLowerCase().includes("cover")) &&
-                    i.getAttribute("media-type")?.startsWith("image/"),
-                );
-                if (coverLikeItem) {
-                  const href = coverLikeItem.getAttribute("href");
-                  const file = zip.file(opfDir + href) || zip.file(opfDir + decodeURIComponent(href));
+                const namedCoverItem = imageItems.find((item) => {
+                  const id = item.getAttribute("id")?.toLowerCase() || "";
+                  const href = item.getAttribute("href")?.toLowerCase() || "";
+                  return /cover|front|jacket/.test(id) || /cover|front|jacket/.test(href);
+                });
+                if (namedCoverItem) {
+                  const file = resolveZipFile(namedCoverItem.getAttribute("href"));
                   if (file) return await file.async("blob");
                 }
 
-                const coverXhtml =
-                  zip.file(opfDir + "Text/cover.xhtml") ||
-                  zip.file(opfDir + "text/cover.xhtml") ||
-                  zip.file("OEBPS/Text/cover.xhtml");
-                if (coverXhtml) {
-                  const xhtmlText = await coverXhtml.async("text");
-                  const hrefMatch =
-                    xhtmlText.match(/xlink:href="([^"]+\.(jpg|jpeg|png|webp))"/i) ||
-                    xhtmlText.match(/href="([^"]+\.(jpg|jpeg|png|webp))"/i) ||
-                    xhtmlText.match(/src="([^"]+\.(jpg|jpeg|png|webp))"/i);
+                const xhtmlCandidates = allItems
+                  .filter((item) => {
+                    const mediaType = item.getAttribute("media-type")?.toLowerCase() || "";
+                    return mediaType.includes("xhtml") || mediaType.includes("html");
+                  })
+                  .map((item) => item.getAttribute("href"))
+                  .filter(Boolean);
 
-                  if (hrefMatch) {
-                    const rawHref = hrefMatch[1];
-                    const filename = rawHref.split("/").pop();
-                    const resolved = opfDir + "Images/" + filename;
+                for (const xhtmlHref of [
+                  ...xhtmlCandidates,
+                  "Text/cover.xhtml",
+                  "text/cover.xhtml",
+                  "OEBPS/Text/cover.xhtml",
+                ]) {
+                  const xhtmlFile = resolveZipFile(xhtmlHref);
+                  if (!xhtmlFile) continue;
 
-                    let file = zip.file(resolved);
-                    if (!file) {
-                      const match = Object.keys(zip.files).find((f) => f.endsWith(filename));
-                      if (match) file = zip.file(match);
-                    }
+                  const xhtmlText = await xhtmlFile.async("text");
+                  const matches = Array.from(
+                    xhtmlText.matchAll(
+                      /(xlink:href|href|src)=["']([^"']+\.(jpg|jpeg|png|webp|gif|avif))["']/gi,
+                    ),
+                  );
+
+                  for (const match of matches) {
+                    const file = resolveZipFile(match[2], normalizeZipPath((xhtmlHref || "").replace(/[^/]+$/, "")));
                     if (file) return await file.async("blob");
                   }
                 }
 
-                const imageFiles = Object.keys(zip.files).filter(
-                  (f) => f.match(/\.(jpg|jpeg|png)$/i) && f.toLowerCase().includes("images"),
-                );
-                if (imageFiles.length > 0) {
-                  return await zip.file(imageFiles[0]).async("blob");
+                const imagePaths = Object.keys(zip.files)
+                  .filter((path) => /\.(jpg|jpeg|png|webp|gif|avif)$/i.test(path))
+                  .sort((a, b) => {
+                    const score = (value: string) => {
+                      const lower = value.toLowerCase();
+                      let points = 0;
+                      if (/cover|front|jacket/.test(lower)) points += 100;
+                      if (/images?|illustrations?/.test(lower)) points += 20;
+                      if (/thumb|thumbnail|icon|logo/.test(lower)) points -= 40;
+                      points += Math.min(lower.length, 40) * -0.1;
+                      return points;
+                    };
+
+                    return score(b) - score(a);
+                  });
+
+                for (const imagePath of imagePaths) {
+                  const file = zip.file(imagePath);
+                  if (file) {
+                    return await file.async("blob");
+                  }
                 }
 
                 return null;
@@ -396,7 +474,7 @@ function UserDashboard({ user, books, setBooks, pushToast, onLogout }) {
             id: data.id,
             title: data.title,
             subfolder: data.subfolder || "Unsorted",
-            cover: data.cover_url || "",
+            cover: toCoverSrc(data),
             fileSizeKb: data.file_size_kb,
             uploadedAt: data.uploaded_at,
             uploadedBy: data.uploaded_by,

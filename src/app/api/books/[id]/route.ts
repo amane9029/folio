@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { insforge } from '@/lib/insforge';
+import { insforgeAdmin } from '@/lib/insforge';
 import { createUserScopedClient, getTokenFromRequest } from '@/lib/server-auth';
 
 export async function DELETE(
@@ -30,7 +30,7 @@ export async function DELETE(
         const urlParts = book.cover_url.split('/objects/');
         if (urlParts.length > 1) {
           const objectKey = decodeURIComponent(urlParts[1]);
-          await insforge.storage.from('covers').remove(objectKey);
+          await insforgeAdmin.storage.from('covers').remove(objectKey);
         }
       } catch (storageErr) {
         console.error('Failed to delete cover from storage:', storageErr);

@@ -39,8 +39,8 @@ export function AuthShell({
   return (
     <div className="min-h-screen bg-[#050505] text-white relative overflow-hidden">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.06),transparent_32%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.04),transparent_28%)]" />
-      <main className="relative z-10 min-h-screen px-6 py-6 sm:px-8 sm:py-8">
-        <section className="min-h-[calc(100vh-3rem)] border border-white/8 bg-[#0a0a0a]/96 overflow-hidden backdrop-blur-xl rounded-[28px] shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
+      <main className="relative z-10 min-h-screen">
+        <section className="min-h-screen bg-[#0a0a0a]/96 overflow-hidden backdrop-blur-xl">
           <div className="h-14 border-b border-white/6 bg-white/[0.02] px-4 sm:px-6 flex items-center justify-center gap-3">
             <div className="flex items-center gap-2">
               <span className="h-3 w-3 rounded-full bg-[#ff5f57] border border-[#e0443e]" />
@@ -50,7 +50,7 @@ export function AuthShell({
             <LogoMark />
           </div>
 
-          <div className="relative min-h-[calc(100vh-3.5rem-3rem)] p-6 sm:p-8 md:p-10 flex items-center justify-center">
+          <div className="relative min-h-[calc(100vh-3.5rem)] p-6 sm:p-8 md:p-10 flex items-center justify-center">
             <div className="pointer-events-none absolute top-[-35%] right-[-10%] h-[70%] w-[45%] rounded-full bg-white/[0.03] blur-[90px]" />
             <div className="w-full max-w-[430px] rounded-[24px] bg-gradient-to-b from-white/[0.08] to-transparent p-[1px]">
               <div className="rounded-[23px] border border-white/6 bg-[#111] px-6 py-7 sm:px-7 sm:py-8 shadow-[0_20px_50px_rgba(0,0,0,0.35)]">
