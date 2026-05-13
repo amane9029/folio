@@ -177,7 +177,13 @@ export default function LandingPage() {
           <div className="flex items-center gap-8">
             <a href="#features" className="hidden md:inline text-[14px] font-medium text-white/50 hover:text-white transition-colors relative z-10">Features</a>
             <button
-              onClick={() => router.push('/auth')}
+              onClick={() => router.push('/register')}
+              className="relative z-10 hidden sm:inline-flex h-9 items-center justify-center rounded-full border border-white/12 bg-white/[0.03] px-5 text-sm font-semibold text-white/80 hover:bg-white/[0.08] hover:text-white transition-colors"
+            >
+              Register
+            </button>
+            <button
+              onClick={() => router.push('/login')}
               className="relative z-10 inline-flex h-9 items-center justify-center rounded-full bg-white px-6 text-sm font-semibold text-black hover:bg-white/90 transition-colors shadow-[0_0_15px_rgba(255,255,255,0.2)] hover:shadow-[0_0_25px_rgba(255,255,255,0.4)] cursor-pointer"
             >
               Sign In
@@ -206,10 +212,10 @@ export default function LandingPage() {
 
         <div className="mt-12 flex flex-col sm:flex-row items-center gap-5 animate-slide-up" style={{ animationDelay: '200ms' }}>
           <button
-            onClick={() => router.push('/auth')}
+            onClick={() => router.push('/register')}
             className="group relative px-8 py-4 rounded-full bg-white text-black text-[16px] font-bold hover:scale-105 transition-all duration-300 shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:shadow-[0_0_50px_rgba(255,255,255,0.4)] cursor-pointer"
           >
-            Get Started for Free
+            Register for Free
             <span className="inline-block ml-2 group-hover:translate-x-1 transition-transform">→</span>
           </button>
         </div>
@@ -358,7 +364,7 @@ export default function LandingPage() {
             Join the private beta today and experience the future of digital book management.
           </p>
           <button
-            onClick={() => router.push('/auth')}
+            onClick={() => router.push('/register')}
             className="relative h-14 px-10 rounded-full bg-white text-black text-[16px] font-bold hover:scale-105 transition-transform duration-300 shadow-[0_0_20px_rgba(255,255,255,0.2)] cursor-pointer"
           >
             Create Free Account
@@ -386,4 +392,3 @@ export default function LandingPage() {
     </div>
   );
 }
-

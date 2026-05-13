@@ -1,70 +1,44 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { insforge } from '@/lib/insforge';
+import bcrypt from 'bcryptjs';
+import { createAuthServerClient } from '@/lib/auth-client';
+import { findUserByEmail } from '@/lib/app-users';
+import { getErrorMessage } from '@/lib/errors';
+import { createSessionResponse } from '@/lib/server-auth';
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password } = await request.json();
+    const body = await request.json();
+    const email = String(body.email || '').trim().toLowerCase();
+    const password = String(body.password || '');
 
-    if (!email || !password) {
+    const user = await findUserByEmail(email);
+    if (!user || !user.is_verified || user.auth_provider !== 'email' || !user.password_hash) {
       return NextResponse.json(
-        { error: 'Email and password are required.' },
-        { status: 400 }
+        { error: 'Account not found or not verified. Please register.' },
+        { status: 404 },
       );
     }
 
-    // Authenticate with InsForge
-    const { data, error } = await insforge.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const passwordMatches = await bcrypt.compare(password, user.password_hash);
+    if (!passwordMatches) {
+      return NextResponse.json({ error: 'Invalid email or password.' }, { status: 401 });
+    }
 
-    if (error || !data) {
+    const authClient = createAuthServerClient();
+    const { data, error } = await authClient.auth.signInWithPassword({ email, password });
+
+    if (error || !data?.accessToken) {
       return NextResponse.json(
-        { error: error?.message || 'Invalid credentials.' },
-        { status: 401 }
+        { error: error?.message || 'Invalid email or password.' },
+        { status: 401 },
       );
     }
 
-    // Fetch role from profiles table
-    const { data: profile } = await insforge.database
-      .from('profiles')
-      .select('role')
-      .eq('id', data.user.id)
-      .single();
-
-    const role = profile?.role || 'user';
-
-    // Build response with role cookie
-    const response = NextResponse.json({
-      token: data.accessToken,
-      role,
-      user: {
-        id: data.user.id,
-        email: data.user.email,
-        name: data.user.profile?.name || email.split('@')[0],
-      },
-    });
-
-    // Set cookies for middleware route protection
-    response.cookies.set('role', role, {
-      path: '/',
-      httpOnly: false,
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7, // 7 days
-    });
-
-    response.cookies.set('token', data.accessToken, {
-      path: '/',
-      httpOnly: false,
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7,
-    });
-
-    return response;
-  } catch (err: any) {
+    return createSessionResponse(data.accessToken);
+  } catch (err: unknown) {
     return NextResponse.json(
-      { error: err.message || 'Internal server error.' },
-      { status: 500 }
+      { error: getErrorMessage(err, 'Failed to sign in.') },
+      { status: 500 },
     );
   }
 }

@@ -1,51 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@insforge/sdk';
+import {
+  createUserScopedClient,
+  decodeJwtPayload,
+  getTokenFromRequest,
+} from '@/lib/server-auth';
 
-function decodeJwtPayload(token: string) {
-  const parts = token.split('.');
-  if (parts.length !== 3) throw new Error('bad jwt');
-
-  const base64Url = parts[1];
-  const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-  const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
-
-  return JSON.parse(Buffer.from(padded, 'base64').toString('utf-8'));
-}
+const NON_LATIN_RE = /[\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF\uAC00-\uD7AF\u0400-\u04FF\u0590-\u06FF\u0900-\u097F\u0370-\u03FF\u0E00-\u0E7F]/;
 
 export async function POST(request: NextRequest) {
   try {
-    // Try getting token from cookie first, then Authorization header
-    const cookieToken = request.cookies.get('token')?.value;
-    const headerToken = request.headers.get('authorization')?.replace('Bearer ', '');
-    const token = cookieToken || headerToken;
-    
-    console.log('Cookie token:', !!cookieToken);
-    console.log('Header token:', !!headerToken);
-    
+    const token = getTokenFromRequest(request);
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized - no token' }, { status: 401 });
     }
 
-    // Decode JWT manually to get userId (don't use getUser yet)
-    let userId: string | null = null;
-    try {
-      const payload = decodeJwtPayload(token);
-      userId = payload.sub || null;
-      console.log('userId:', userId);
-      console.log('token expired:', payload.exp < Math.floor(Date.now()/1000));
-      if (!userId) throw new Error('no sub');
-    } catch(e: any) {
-      console.error('Token decode error:', e.message);
-      return NextResponse.json({ error: 'Invalid token: ' + e.message }, { status: 401 });
+    const payload = decodeJwtPayload(token);
+    const userId = payload.sub;
+
+    if (!userId) {
+      return NextResponse.json({ error: 'Invalid token: no sub' }, { status: 401 });
     }
 
-    // Create a user-scoped client so RLS (auth.uid()) evaluates correctly
-    const userClient = createClient({
-      baseUrl: process.env.NEXT_PUBLIC_INSFORGE_URL!,
-      anonKey: process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY!,
-    });
-    userClient.setAccessToken(token);
-
+    const userClient = createUserScopedClient(token);
     const formData = await request.formData();
     const cover = formData.get('cover') as File | null;
     const title = formData.get('title') as string;
@@ -59,45 +35,33 @@ export async function POST(request: NextRequest) {
     let coverUrl: string | null = null;
     let coverKey: string | null = null;
 
-    // Upload cover to InsForge storage if provided
     if (cover && cover.size > 0) {
       try {
-        const ext = 'jpg';
-        const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-
-        // SDK expects File | Blob — pass the cover File directly
+        const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
         const { data: uploadData, error: uploadError } = await userClient.storage
           .from('covers')
           .upload(path, cover);
 
-        console.log('Upload result:', JSON.stringify(uploadData), 'Error:', uploadError);
-
         if (uploadError) {
           console.error('Cover upload error:', uploadError);
         } else if (uploadData) {
-          // SDK returns { url, key } directly in the response
           coverUrl = uploadData.url || null;
           coverKey = uploadData.key || path;
-          console.log('Cover uploaded successfully, URL:', coverUrl, 'Key:', coverKey);
         }
       } catch (storageErr) {
         console.error('Storage exception:', storageErr);
       }
-    } else {
-      console.log('No cover received — cover size:', cover?.size);
     }
 
     let translation = null;
-    const NON_LATIN_RE = /[\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF\uAC00-\uD7AF\u0400-\u04FF\u0590-\u06FF\u0900-\u097F\u0370-\u03FF\u0E00-\u0E7F]/;
 
     if (NON_LATIN_RE.test(title)) {
       try {
-        console.log('Translating title with Groq:', title);
-        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-            'Content-Type': 'application/json'
+            Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+            'Content-Type': 'application/json',
           },
           body: JSON.stringify({
             model: 'llama-3.3-70b-versatile',
@@ -109,65 +73,59 @@ Input title may contain Japanese, Chinese, Korean, Cyrillic, Arabic, etc.
 Keys: language (BCP-47 like "ja","zh","ko","ru","ar"), romaji (transliteration in Latin script), english (idiomatic English title).
 If the input is already English, return {"language":"en","romaji":"${title}","english":"${title}"}.
 
-Title: ${JSON.stringify(title)}`
-              }
-            ]
-          })
+Title: ${JSON.stringify(title)}`,
+              },
+            ],
+          }),
         });
 
-        if (!res.ok) {
-          throw new Error(`Groq API Error: ${res.status} ${res.statusText}`);
+        if (response.ok) {
+          const data = await response.json();
+          const content = data.choices?.[0]?.message?.content || '';
+          const match = content.match(/\{[\s\S]*\}/);
+          if (match) {
+            translation = JSON.parse(match[0]);
+          }
         }
-
-        const data = await res.json();
-        const content = data.choices?.[0]?.message?.content || '';
-        const m = content.match(/\{[\s\S]*\}/);
-        if (m) {
-          translation = JSON.parse(m[0]);
-        }
-      } catch (e: any) {
-        console.error('Translation error with Groq:', e.message);
+      } catch (error: any) {
+        console.error('Translation error with Groq:', error.message);
       }
     }
 
-    // Validate UUID format
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId || '');
-    const finalUserId = isUuid ? userId : null;
+    const id = crypto.randomUUID();
+    const { error: insertError } = await userClient.database.from('books').insert([{
+      id,
+      title,
+      subfolder: subfolder || null,
+      cover_url: coverUrl,
+      file_size_kb: fileSizeKb,
+      user_id: userId,
+      uploaded_by: userId,
+      translation,
+    }]);
 
-    const newBookId = crypto.randomUUID();
-
-    // Insert book record without .select() to avoid RLS read policy evaluation
-    const { error: dbError } = await userClient.database
-      .from('books')
-      .insert([{
-        id: newBookId,
-        title,
-        subfolder: subfolder || null,
-        cover_url: coverUrl,
-        file_size_kb: fileSizeKb,
-        uploaded_by: finalUserId,
-        translation: translation
-      }]);
-
-    if (dbError) {
+    if (insertError) {
       return NextResponse.json(
-        { error: dbError.message || 'Failed to create book record.' },
-        { status: 500 }
+        { error: insertError.message || 'Failed to create book record.' },
+        { status: 500 },
       );
     }
 
-    return NextResponse.json({ 
-      id: newBookId,
+    return NextResponse.json({
+      id,
       title,
+      subfolder: subfolder || 'Unsorted',
       cover_url: coverUrl,
       file_size_kb: fileSizeKb,
       translation,
-      cover_key: coverKey 
+      cover_key: coverKey,
+      user_id: userId,
+      uploaded_by: userId,
     });
   } catch (err: any) {
     return NextResponse.json(
       { error: err.message || 'Internal server error.' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@insforge/sdk": "^1.2.7",
+    "bcryptjs": "^3.0.3",
     "dotenv": "^17.4.2",
     "jszip": "^3.10.1",
     "next": "16.2.6",

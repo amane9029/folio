@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { AvatarMenu, Button, Input, Modal, Toast, PageHeader, DeleteBookModal } from '@/components/shared';
 import { IconList, IconClock, IconSearch, IconTrash, IconFolder, IconChevLeft, IconChevRight, IconUpload, IconShield, IconLogout, IconCheck, IconClose, IconAlert, IconBook } from '@/components/icons';
 import { INITIAL_BOOKS, fmtSize, fmtDate, fmtRelative, DEMO_ACCOUNTS } from '@/components/data';
+import { insforge } from '@/lib/insforge';
+import { clearAppSession, syncAppSessionFromInsForge } from '@/lib/client-auth';
 
 const QUOTA_CAP_KB = 256 * 1024;
 
@@ -14,77 +16,27 @@ export default function AdminPage() {
   const [books, setBooks] = useState([]);
   const [events, setEvents] = useState<any[]>([]);
   const [toast, setToast] = useState<string | null>(null);
-
-  useEffect(() => {
-    const roleMatch = document.cookie.match(/role=([^;]+)/);
-    const role = roleMatch ? roleMatch[1] : 'admin';
-
-    const tokenMatch = document.cookie.match(/token=([^;]+)/);
-    let email = '';
-    let name = '';
-    if (tokenMatch) {
-      try {
-        const base64Url = tokenMatch[1].split('.')[1];
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const payload = JSON.parse(atob(base64));
-        email = payload.email || '';
-        name = payload.user_metadata?.name || email.split('@')[0];
-      } catch (e) {}
-    }
-
-    const initials = (name || email || 'A')
-      .split(/[\s@._-]+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map(part => part[0]?.toUpperCase())
-      .join('') || 'A';
-
-    setUser({ role, email, name, initials });
-
-    fetch('/api/books')
-      .then(async (r) => ({ ok: r.ok, status: r.status, data: await r.json().catch(() => null) }))
-      .then(data => {
-        if (Array.isArray(data.data)) {
-          const mapped = data.data.map(b => ({
-            id: b.id,
-            title: b.title,
-            subfolder: b.subfolder || 'Unsorted',
-            cover: b.cover_url || '',
-            fileSizeKb: b.file_size_kb,
-            uploadedAt: b.uploaded_at,
-            uploadedBy: b.uploaded_by,
-          }));
-          setBooks(mapped);
-        } else {
-          console.warn('Admin books fetch failed:', data.status, data.data);
-        }
-      })
-      .catch((error) => {
-        console.warn('Admin books fetch failed:', error);
-      });
-  }, []);
+  const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
-    const hydrateUser = async () => {
+    const hydrateSession = async () => {
       try {
-        const { createClient } = await import('@insforge/sdk');
-        const insforge = createClient({
-          baseUrl: process.env.NEXT_PUBLIC_INSFORGE_URL!,
-          anonKey: process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY!,
-        });
+        await syncAppSessionFromInsForge().catch(() => null);
 
-        const tokenMatch = document.cookie.match(/token=([^;]+)/);
-        if (tokenMatch) {
-          insforge.setAccessToken(tokenMatch[1]);
+        const response = await fetch('/api/auth/me', { cache: 'no-store' });
+        const data = await response.json().catch(() => null);
+
+        if (!response.ok || !data?.user) {
+          if (!cancelled) {
+            router.push('/auth');
+          }
+          return;
         }
 
-        const { data, error } = await insforge.auth.getCurrentUser();
-        if (cancelled || error || !data?.user) return;
-
         const email = data.user.email || '';
-        const name = data.user.profile?.name || email.split('@')[0] || 'Administrator';
+        const name = data.user.name || email.split('@')[0] || 'Administrator';
         const initials = name
           .split(/[\s@._-]+/)
           .filter(Boolean)
@@ -92,21 +44,67 @@ export default function AdminPage() {
           .map(part => part[0]?.toUpperCase())
           .join('') || 'A';
 
-        setUser(prev => ({
-          ...prev,
-          email: email || prev.email,
-          name,
-          initials,
-        }));
+        if (!cancelled) {
+          setUser({
+            id: data.user.id,
+            role: data.role || 'admin',
+            email,
+            name,
+            initials,
+          });
+          setAuthReady(true);
+        }
       } catch {}
     };
 
-    hydrateUser();
+    hydrateSession();
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [router]);
+
+  useEffect(() => {
+    if (!authReady) return;
+
+    let cancelled = false;
+
+    const loadBooks = async () => {
+      try {
+        const response = await fetch('/api/books', { cache: 'no-store' });
+        const data = await response.json().catch(() => null);
+
+        if (!response.ok || !Array.isArray(data)) {
+          if (!cancelled) {
+            console.warn('Admin books fetch failed:', response.status, data);
+          }
+          return;
+        }
+
+        if (!cancelled) {
+          setBooks(data.map(b => ({
+            id: b.id,
+            title: b.title,
+            subfolder: b.subfolder || 'Unsorted',
+            cover: b.cover_url || '',
+            fileSizeKb: b.file_size_kb,
+            uploadedAt: b.uploaded_at,
+            uploadedBy: b.user_id || b.uploaded_by,
+          })));
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.warn('Admin books fetch failed:', error);
+        }
+      }
+    };
+
+    loadBooks();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authReady]);
 
   const pushToast = (msg: string) => {
     setToast(msg);
@@ -121,18 +119,12 @@ export default function AdminPage() {
   };
   const onLogout = async () => {
     try {
-      const { createClient } = await import('@insforge/sdk');
-      const insforge = createClient({
-        baseUrl: process.env.NEXT_PUBLIC_INSFORGE_URL!,
-        anonKey: process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY!,
-      });
       await insforge.auth.signOut();
+      await clearAppSession();
     } catch (e) {
       console.error('Logout error', e);
     }
-    document.cookie = "role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-    document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-    router.push('/');
+    router.push('/auth');
   };
 
   return (

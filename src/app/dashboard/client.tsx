@@ -21,59 +21,50 @@ import {
   IconLogout,
 } from "@/components/icons";
 import { insforge } from "@/lib/insforge";
+import { clearAppSession, syncAppSessionFromInsForge } from "@/lib/client-auth";
 import JSZip from "jszip";
+
+const fmtSize = (kb?: number) => {
+  if (!kb) return "Unknown";
+  if (kb < 1024) return `${kb} KB`;
+  return `${(kb / 1024).toFixed(1)} MB`;
+};
+
+const fmtDate = (dateStr?: string) => {
+  if (!dateStr) return "Unknown";
+  return new Date(dateStr).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+};
 
 export default function DashboardClient({ initialBooks }: { initialBooks: any[] }) {
   const router = useRouter();
   const [user, setUser] = useState({ role: "user", email: "...", name: "Loading" });
   const [books, setBooks] = useState(initialBooks || []);
   const [toast, setToast] = useState<string | null>(null);
-
-  useEffect(() => {
-    const roleMatch = document.cookie.match(/role=([^;]+)/);
-    const role = roleMatch ? roleMatch[1] : "user";
-
-    const tokenMatch = document.cookie.match(/token=([^;]+)/);
-    let email = "";
-    let name = "";
-    let id = "";
-    if (tokenMatch) {
-      try {
-        const base64Url = tokenMatch[1].split(".")[1];
-        const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-        const payload = JSON.parse(atob(base64));
-        email = payload.email || "";
-        name = payload.user_metadata?.name || email.split("@")[0];
-        id = payload.sub;
-      } catch (e) {}
-    }
-
-    const initials =
-      (name || email || "F")
-        .split(/[\s@._-]+/)
-        .filter(Boolean)
-        .slice(0, 2)
-        .map((part) => part[0]?.toUpperCase())
-        .join("") || "F";
-
-    setUser({ id, role, email, name, initials });
-  }, []);
+  const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
-    const hydrateUser = async () => {
+    const hydrateSession = async () => {
       try {
-        const tokenMatch = document.cookie.match(/token=([^;]+)/);
-        if (tokenMatch) {
-          insforge.setAccessToken(tokenMatch[1]);
+        await syncAppSessionFromInsForge().catch(() => null);
+
+        const response = await fetch("/api/auth/me", { cache: "no-store" });
+        const data = await response.json().catch(() => null);
+
+        if (!response.ok || !data?.user) {
+          if (!cancelled) {
+            router.push("/auth");
+          }
+          return;
         }
 
-        const { data, error } = await insforge.auth.getCurrentUser();
-        if (cancelled || error || !data?.user) return;
-
         const email = data.user.email || "";
-        const name = data.user.profile?.name || email.split("@")[0] || "Reader";
+        const name = data.user.name || email.split("@")[0] || "Reader";
         const initials =
           name
             .split(/[\s@._-]+/)
@@ -82,24 +73,29 @@ export default function DashboardClient({ initialBooks }: { initialBooks: any[] 
             .map((part) => part[0]?.toUpperCase())
             .join("") || "F";
 
-        setUser((prev) => ({
-          ...prev,
-          id: data.user.id || prev.id,
-          email: email || prev.email,
-          name,
-          initials,
-        }));
+        if (!cancelled) {
+          setUser({
+            id: data.user.id,
+            role: data.role || "user",
+            email,
+            name,
+            initials,
+          });
+          setAuthReady(true);
+        }
       } catch {}
     };
 
-    hydrateUser();
+    hydrateSession();
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [router]);
 
   useEffect(() => {
+    if (!authReady) return;
+
     let cancelled = false;
 
     const loadBooks = async () => {
@@ -130,7 +126,7 @@ export default function DashboardClient({ initialBooks }: { initialBooks: any[] 
             cover: b.cover_url || "",
             fileSizeKb: b.file_size_kb,
             uploadedAt: b.uploaded_at,
-            uploadedBy: b.uploaded_by,
+            uploadedBy: b.user_id || b.uploaded_by,
             translation: b.translation,
           }));
           setBooks(mapped);
@@ -147,7 +143,7 @@ export default function DashboardClient({ initialBooks }: { initialBooks: any[] 
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, [authReady, router]);
 
   const pushToast = (msg: string) => {
     setToast(msg);
@@ -157,12 +153,11 @@ export default function DashboardClient({ initialBooks }: { initialBooks: any[] 
   const onLogout = async () => {
     try {
       await insforge.auth.signOut();
+      await clearAppSession();
     } catch (e) {
       console.error("Logout error", e);
     }
-    document.cookie = "role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-    document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-    router.push("/");
+    router.push("/auth");
   };
 
   return (

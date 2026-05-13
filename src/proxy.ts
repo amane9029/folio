@@ -8,14 +8,14 @@ export function proxy(request: NextRequest) {
   // Protect /dashboard — must have auth cookie
   if (request.nextUrl.pathname.startsWith('/dashboard')) {
     if (!token) {
-      return NextResponse.redirect(new URL('/', request.url));
+      return NextResponse.redirect(new URL('/auth', request.url));
     }
   }
 
   // Protect /admin — must be admin
   if (request.nextUrl.pathname.startsWith('/admin')) {
     if (!token || role !== 'admin') {
-      return NextResponse.redirect(new URL('/', request.url));
+      return NextResponse.redirect(new URL('/auth', request.url));
     }
   }
 
