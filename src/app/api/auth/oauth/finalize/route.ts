@@ -22,8 +22,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const accessToken = String(body.accessToken || '');
     const mode = body.mode === 'register' ? 'register' : 'login';
-    const displayName = body.name ? String(body.name) : null;
-
     if (!accessToken) {
       return NextResponse.json({ error: 'Missing access token.' }, { status: 400 });
     }
@@ -35,6 +33,11 @@ export async function POST(request: NextRequest) {
     if (!authUserId || !email) {
       return NextResponse.json({ error: 'Invalid Google session.' }, { status: 400 });
     }
+
+    const displayName =
+      (body.name ? String(body.name) : null) ||
+      (typeof payload.user_metadata?.name === 'string' ? payload.user_metadata.name : null) ||
+      email.split('@')[0];
 
     const googleSub = getGoogleSub(payload);
     const existingByAuth = await findUserByAuthUserId(authUserId);

@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAuthServerClient } from '@/lib/auth-client';
-import { findUserByEmail, markVerificationSent } from '@/lib/app-users';
+import {
+  findUserByEmail,
+  markVerificationSent,
+  recoverUserFromAuth,
+} from '@/lib/app-users';
 import { getErrorMessage } from '@/lib/errors';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const email = String(body.email || '').trim().toLowerCase();
-    const user = await findUserByEmail(email);
+    let user = await findUserByEmail(email);
+    if (!user) {
+      user = await recoverUserFromAuth(email).catch(() => null);
+    }
 
     if (!user) {
       return NextResponse.json({ error: 'Account not found.' }, { status: 404 });

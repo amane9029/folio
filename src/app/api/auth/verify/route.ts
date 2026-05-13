@@ -5,6 +5,7 @@ import {
   getOtpPolicyError,
   incrementVerifyAttempts,
   markVerified,
+  recoverUserFromAuth,
 } from '@/lib/app-users';
 import { getErrorMessage } from '@/lib/errors';
 import { createSessionResponse } from '@/lib/server-auth';
@@ -15,7 +16,11 @@ export async function POST(request: NextRequest) {
     const email = String(body.email || '').trim().toLowerCase();
     const otp = String(body.otp || '').trim();
 
-    const user = await findUserByEmail(email);
+    let user = await findUserByEmail(email);
+    if (!user) {
+      user = await recoverUserFromAuth(email).catch(() => null);
+    }
+
     if (!user) {
       return NextResponse.json({ error: 'Account not found.' }, { status: 404 });
     }

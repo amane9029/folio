@@ -254,6 +254,26 @@ function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+function shouldContinueToVerification(errorMessage: string) {
+  const value = errorMessage.toLowerCase();
+  if (value.includes('account already exists')) {
+    return false;
+  }
+  if (value.includes('continue with google')) {
+    return false;
+  }
+  if (value.includes('invalid')) {
+    return false;
+  }
+
+  return (
+    value.includes('failed to register account') ||
+    value.includes('failed to send verification code') ||
+    value.includes('please wait') ||
+    value.includes('verification')
+  );
+}
+
 export function AuthHomePage() {
   useAuthBootstrap();
 
@@ -412,8 +432,14 @@ export function RegisterPage() {
     const data = await response.json().catch(() => null);
 
     if (!response.ok) {
+      const message = data?.error || 'Failed to register.';
+      if (shouldContinueToVerification(message)) {
+        router.push(`/verify?email=${encodeURIComponent(email)}`);
+        return;
+      }
+
       setLoading(false);
-      setError(data?.error || 'Failed to register.');
+      setError(message);
       return;
     }
 
@@ -773,8 +799,11 @@ export function ForgotPasswordPage() {
   );
 }
 
-export function OAuthCallbackPage({ mode = 'login' }: { mode?: 'login' | 'register' }) {
-  const router = useRouter();
+export function OAuthCallbackPage({
+  mode = 'login',
+}: {
+  mode?: 'login' | 'register';
+}) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -783,13 +812,13 @@ export function OAuthCallbackPage({ mode = 'login' }: { mode?: 'login' | 'regist
     const finishOAuth = async () => {
       try {
         const { data: currentUser, error: currentUserError } = await insforge.auth.getCurrentUser();
-        if (currentUserError || !currentUser.user) {
+        if (currentUserError || !currentUser?.user) {
           throw new Error('Unable to load your Google profile.');
         }
 
         const { data, error: refreshError } = await insforge.auth.refreshSession();
         if (refreshError || !data?.accessToken) {
-          throw new Error('Unable to refresh your Google session.');
+          throw new Error(refreshError?.message || 'Unable to refresh your Google session.');
         }
 
         const response = await fetch('/api/auth/oauth/finalize', {
@@ -814,7 +843,7 @@ export function OAuthCallbackPage({ mode = 'login' }: { mode?: 'login' | 'regist
         }
 
         if (!cancelled) {
-          router.replace('/dashboard');
+          window.location.replace('/dashboard');
         }
       } catch (err: unknown) {
         if (!cancelled) {
@@ -828,7 +857,15 @@ export function OAuthCallbackPage({ mode = 'login' }: { mode?: 'login' | 'regist
     return () => {
       cancelled = true;
     };
-  }, [mode, router]);
+  }, [mode]);
+
+  if (!error) {
+    return (
+      <div className="min-h-screen bg-[#050505]" aria-busy="true" aria-live="polite">
+        <span className="sr-only">Signing you in with Google and redirecting to the dashboard.</span>
+      </div>
+    );
+  }
 
   return (
     <AuthShell

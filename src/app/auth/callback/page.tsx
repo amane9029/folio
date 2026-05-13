@@ -1,4 +1,4 @@
-import { OAuthCallbackPage } from '@/components/auth-ui';
+import { OAuthCallbackFullPage } from '@/components/oauth-callback-page';
 
 export default async function Page({
   searchParams,
@@ -6,5 +6,5 @@ export default async function Page({
   searchParams: Promise<{ mode?: string }>;
 }) {
   const params = await searchParams;
-  return <OAuthCallbackPage mode={params.mode === 'register' ? 'register' : 'login'} />;
+  return <OAuthCallbackFullPage mode={params.mode === 'register' ? 'register' : 'login'} />;
 }
