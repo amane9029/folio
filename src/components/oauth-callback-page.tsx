@@ -60,7 +60,7 @@ export function OAuthCallbackFullPage({
         }
 
         if (!cancelled) {
-          window.location.replace('/dashboard');
+          window.location.replace(payload?.role === 'admin' ? '/admin' : '/dashboard');
         }
       } catch (err: unknown) {
         if (!cancelled) {

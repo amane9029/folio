@@ -2,7 +2,6 @@ import { cookies } from 'next/headers';
 import DashboardClient from './client';
 import { redirect } from 'next/navigation';
 import { createUserScopedClient, decodeJwtPayload, resolveUserRole } from '@/lib/server-auth';
-import { insforgeAdmin } from '@/lib/insforge';
 
 export default async function DashboardPage() {
   const cookieStore = await cookies();
@@ -18,9 +17,11 @@ export default async function DashboardPage() {
   }
 
   const role = await resolveUserRole(payload.sub);
-  const query = role === 'admin'
-    ? insforgeAdmin.database.from('books').select()
-    : createUserScopedClient(token).database.from('books').select().eq('user_id', payload.sub);
+  if (role === 'admin') {
+    redirect('/admin');
+  }
+
+  const query = createUserScopedClient(token).database.from('books').select().eq('user_id', payload.sub);
 
   const { data } = await query.order('uploaded_at', { ascending: false });
 

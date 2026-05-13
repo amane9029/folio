@@ -5,6 +5,7 @@ import { insforgeAdmin } from '@/lib/insforge';
 export type AppRole = 'admin' | 'user';
 
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
+const ADMIN_EMAILS = new Set(['admin@folio.com', 'admin@example.com']);
 
 type JwtPayload = {
   sub?: string;
@@ -35,6 +36,10 @@ export function getTokenFromRequest(request: NextRequest) {
   return cookieToken || headerToken || null;
 }
 
+function getRoleForEmail(email?: string | null): AppRole {
+  return email && ADMIN_EMAILS.has(email.toLowerCase()) ? 'admin' : 'user';
+}
+
 export async function ensureUserProfile(userId: string, email?: string) {
   const { data: profiles, error: profileError } = await insforgeAdmin.database
     .from('profiles')
@@ -46,22 +51,34 @@ export async function ensureUserProfile(userId: string, email?: string) {
     throw new Error(profileError.message || 'Failed to read profile.');
   }
 
+  const expectedRole = getRoleForEmail(email);
   const existingRole = Array.isArray(profiles) ? profiles[0]?.role : null;
-  if (existingRole === 'admin' || existingRole === 'user') {
+  if (existingRole === expectedRole) {
     return existingRole as AppRole;
   }
 
-  const initialRole = email === 'admin@folio.com' ? 'admin' : 'user';
+  if (existingRole === 'admin' || existingRole === 'user') {
+    const { error: updateError } = await insforgeAdmin.database
+      .from('profiles')
+      .update({ role: expectedRole })
+      .eq('id', userId);
+
+    if (updateError) {
+      throw new Error(updateError.message || 'Failed to update profile role.');
+    }
+
+    return expectedRole;
+  }
 
   const { error: insertError } = await insforgeAdmin.database
     .from('profiles')
-    .insert([{ id: userId, role: initialRole }]);
+    .insert([{ id: userId, role: expectedRole }]);
 
   if (insertError) {
     throw new Error(insertError.message || 'Failed to create profile.');
   }
 
-  return initialRole as AppRole;
+  return expectedRole;
 }
 
 export async function resolveUserRole(userId: string) {

@@ -218,9 +218,15 @@ export function DeleteBookModal({ book, onClose, onConfirm, accent = 'user' }: a
   if (!book) return null;
 
   const armed = typed.trim().toUpperCase() === 'DELETE';
+  const handleSubmit = (event: any) => {
+    event.preventDefault();
+    if (!armed) return;
+    onConfirm(book);
+  };
 
   return (
     <Modal open={!!book} onClose={onClose} maxWidth="max-w-[440px]">
+      <form onSubmit={handleSubmit}>
       <div className="flex items-start gap-4">
         <div className="w-[68px] h-[100px] rounded-md overflow-hidden bg-ink/10 shrink-0 shadow-card relative">
           {book.cover ? (
@@ -253,15 +259,16 @@ export function DeleteBookModal({ book, onClose, onConfirm, accent = 'user' }: a
       />
 
       <div className="mt-6 flex items-center justify-end gap-2">
-        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
         <Button
+          type="submit"
           variant="destructive"
           disabled={!armed}
-          onClick={() => onConfirm(book)}
         >
           <IconTrash size={15}/> Permanently Delete
         </Button>
       </div>
+      </form>
     </Modal>
   );
 }

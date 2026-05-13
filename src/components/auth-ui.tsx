@@ -29,12 +29,14 @@ export function AuthShell({
   description,
   children,
   footer,
+  topAction,
 }: {
   eyebrow?: string;
   title: string;
   description: string;
   children: ReactNode;
   footer?: ReactNode;
+  topAction?: ReactNode;
 }) {
   return (
     <div className="min-h-screen bg-[#050505] text-white relative overflow-hidden">
@@ -54,6 +56,7 @@ export function AuthShell({
             <div className="pointer-events-none absolute top-[-35%] right-[-10%] h-[70%] w-[45%] rounded-full bg-white/[0.03] blur-[90px]" />
             <div className="w-full max-w-[430px] rounded-[24px] bg-gradient-to-b from-white/[0.08] to-transparent p-[1px]">
               <div className="rounded-[23px] border border-white/6 bg-[#111] px-6 py-7 sm:px-7 sm:py-8 shadow-[0_20px_50px_rgba(0,0,0,0.35)]">
+                {topAction ? <div className="mb-5">{topAction}</div> : null}
                 {eyebrow && (
                   <div className="mb-3 text-[11px] uppercase tracking-[0.18em] text-white/45">
                     {eyebrow}
@@ -72,6 +75,20 @@ export function AuthShell({
         </section>
       </main>
     </div>
+  );
+}
+
+function MainWebsiteLink() {
+  return (
+    <Link
+      href="/"
+      className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-2 text-[12px] font-medium text-white/62 transition hover:bg-white/[0.06] hover:text-white"
+    >
+      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/[0.05]">
+        <IconArrow size={12} className="rotate-180" />
+      </span>
+      Back to main website
+    </Link>
   );
 }
 
@@ -334,7 +351,7 @@ export function LoginPage() {
       return;
     }
 
-    router.replace('/dashboard');
+    router.replace(data?.role === 'admin' ? '/admin' : '/dashboard');
   };
 
   const handleGoogle = async () => {
@@ -354,6 +371,7 @@ export function LoginPage() {
 
   return (
     <AuthShell
+      topAction={<MainWebsiteLink />}
       eyebrow="Welcome Back"
       title="Sign in to your library."
       description="Use your verified Folio account to continue, or jump in with Google if you registered that way."
@@ -463,6 +481,7 @@ export function RegisterPage() {
 
   return (
     <AuthShell
+      topAction={<MainWebsiteLink />}
       eyebrow="Create Account"
       title="Start your Folio library."
       description="Register with email and password, then verify the 6-digit code we send before entering the dashboard."
@@ -552,7 +571,7 @@ export function VerifyPage({ email = '' }: { email?: string }) {
       return;
     }
 
-    router.replace('/dashboard');
+    router.replace(data?.role === 'admin' ? '/admin' : '/dashboard');
   };
 
   const handleResend = async () => {
