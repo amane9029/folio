@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { IconChevDown, IconShield, IconLogout, IconCheck, IconTrash, IconBook } from './icons';
 
 export function Button({ variant = 'primary', accent = 'user', size = 'md', className = '', children, ...rest }: any){
@@ -50,6 +51,12 @@ export function Input({ accent = 'user', icon, className = '', wrapperClass = ''
 }
 
 export function Modal({ open, onClose, children, maxWidth = 'max-w-md' }: any){
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: any) => { if (e.key === 'Escape') onClose?.(); };
@@ -61,14 +68,16 @@ export function Modal({ open, onClose, children, maxWidth = 'max-w-md' }: any){
     };
   }, [open, onClose]);
 
-  if (!open) return null;
-  return (
+  if (!open || !mounted) return null;
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm cursor-pointer" onClick={onClose} />
       <div className={`relative ${maxWidth} w-[92%] bg-surface rounded-2xl shadow-lift animate-modal-in p-6`}>
         {children}
       </div>
     </div>
+    ,
+    document.body
   );
 }
 

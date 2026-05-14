@@ -22,6 +22,7 @@ import {
 } from "@/components/icons";
 import { insforge } from "@/lib/insforge";
 import { clearAppSession, syncAppSessionFromInsForge } from "@/lib/client-auth";
+import { appendAuditEvent } from "@/lib/audit-log";
 import JSZip from "jszip";
 
 const fmtSize = (kb?: number) => {
@@ -557,6 +558,7 @@ function UserDashboard({ user, books, setBooks, pushToast, onLogout }) {
       setBooks((prev) => prev.filter((b) => b.id !== book.id));
       setToDelete(null);
       setActiveBook(null);
+      appendAuditEvent("delete", user?.email || "unknown", book.title, { folder: book.subfolder });
       pushToast(`"${book.title}" removed`);
     } catch (err) {
       alert("Failed to delete book");

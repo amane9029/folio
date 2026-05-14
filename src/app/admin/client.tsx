@@ -3,10 +3,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { AvatarMenu, Button, Input, Modal, Toast, PageHeader, DeleteBookModal } from '@/components/shared';
-import { IconList, IconClock, IconSearch, IconTrash, IconFolder, IconChevLeft, IconChevRight, IconUpload, IconShield, IconLogout, IconCheck, IconClose, IconAlert, IconBook } from '@/components/icons';
+import { IconList, IconClock, IconSearch, IconTrash, IconFolder, IconChevLeft, IconChevRight, IconUpload, IconShield, IconLogout, IconCheck, IconClose, IconAlert, IconBook, IconCalendar, IconMail, IconCopy } from '@/components/icons';
 import { fmtSize, fmtDate, fmtRelative } from '@/components/data';
 import { insforge } from '@/lib/insforge';
 import { clearAppSession } from '@/lib/client-auth';
+import { appendAuditEvent, loadAuditEvents } from '@/lib/audit-log';
 
 const QUOTA_CAP_KB = 256 * 1024;
 
@@ -22,12 +23,12 @@ export default function AdminPageClient({ initialUser, initialBooks }) {
     setTimeout(() => setToast(null), 2400);
   };
   const pushEvent = (kind: string, actor: string, target: string, meta = {}) => {
-    setEvents(prev => [{
-      id: 'ev_' + Date.now().toString(36),
-      at: new Date().toISOString(),
-      kind, actor, target, meta,
-    }, ...prev]);
+    setEvents(() => appendAuditEvent(kind, actor, target, meta));
   };
+
+  useEffect(() => {
+    setEvents(loadAuditEvents());
+  }, []);
   const onLogout = async () => {
     try {
       await insforge.auth.signOut();
@@ -123,30 +124,39 @@ function AdminPanel({ books, setBooks, events, quotaCapKb, currentUser, pushToas
   }, [books]);
 
   const confirmDelete = async (b) => {
+    setToDelete(null);
+    setBooks(prev => prev.filter(x => x.id !== b.id));
+    pushEvent && pushEvent('delete', currentUser.email, b.title, { folder: b.subfolder });
+    pushToast(`Removed "${b.title}" from library`);
+
     try {
       const res = await fetch(`/api/books/${b.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Delete failed');
-      setBooks(prev => prev.filter(x => x.id !== b.id));
-      setToDelete(null);
-      pushEvent && pushEvent('delete', currentUser.email, b.title, { folder: b.subfolder });
-      pushToast(`Removed "${b.title}" from library`);
     } catch (e) {
-      alert("Failed to delete book");
+      setBooks(prev => prev.some(x => x.id === b.id) ? prev : [b, ...prev]);
+      pushToast(`Failed to delete "${b.title}". Restored.`);
     }
   };
 
   const confirmBulkDelete = async (list) => {
+    const ids = new Set(list.map(b => b.id));
+    setBulkTargets(null);
+    setBooks(prev => prev.filter(x => !ids.has(x.id)));
+    list.forEach(b => pushEvent && pushEvent('delete', currentUser.email, b.title, { folder: b.subfolder }));
+    pushToast(`Removed ${list.length} ${list.length === 1 ? 'book' : 'books'} from library`);
+
     try {
-      for (const b of list) {
-        await fetch(`/api/books/${b.id}`, { method: 'DELETE' });
-      }
-      const ids = new Set(list.map(b => b.id));
-      setBooks(prev => prev.filter(x => !ids.has(x.id)));
-      list.forEach(b => pushEvent && pushEvent('delete', currentUser.email, b.title, { folder: b.subfolder }));
-      setBulkTargets(null);
-      pushToast(`Removed ${list.length} ${list.length === 1 ? 'book' : 'books'} from library`);
+      await Promise.all(list.map(async (b) => {
+        const res = await fetch(`/api/books/${b.id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Delete failed');
+      }));
     } catch (e) {
-      alert("Failed to delete some books");
+      setBooks(prev => {
+        const existing = new Set(prev.map(x => x.id));
+        const restore = list.filter(x => !existing.has(x.id));
+        return [...restore, ...prev];
+      });
+      pushToast('Failed to delete some books. Restored.');
     }
   };
 
@@ -740,62 +750,70 @@ function BulkDeleteModal({ books, onClose, onConfirm }){
 
   return (
     <Modal open={open} onClose={onClose} maxWidth="max-w-[520px]">
-      <div className="flex items-start gap-4">
-        <div className="h-10 w-10 rounded-full bg-crimson/12 text-crimson grid place-items-center shrink-0">
-          <IconAlert size={18}/>
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-crimson mb-1">Bulk delete · destructive</div>
-          <div className="font-serif text-[22px] text-ink leading-tight">
-            Permanently delete {books.length} {books.length === 1 ? 'book' : 'books'}?
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!matches) return;
+          onConfirm(books);
+        }}
+      >
+        <div className="flex items-start gap-4">
+          <div className="h-10 w-10 rounded-full bg-crimson/12 text-crimson grid place-items-center shrink-0">
+            <IconAlert size={18}/>
           </div>
-          <div className="text-[13px] text-ink/70 mt-1.5">
-            Frees <span className="text-ink font-medium">{fmtSize(totalKb)}</span>. Files and database records are removed for every reader. There is no undo.
-          </div>
-        </div>
-      </div>
-
-      <ul className="mt-5 bg-bg rounded-lg border border-ink/15 divide-y divide-ink/10 max-h-[200px] overflow-y-auto">
-        {previews.map(b => (
-          <li key={b.id} className="flex items-center gap-3 px-3 py-2">
-            <div className="w-7 h-[42px] rounded-[2px] overflow-hidden bg-ink/10 shrink-0">
-              <img src={b.cover} alt="" className="w-full h-full object-cover"/>
+          <div className="min-w-0 flex-1">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-crimson mb-1">Bulk delete · destructive</div>
+            <div className="font-serif text-[22px] text-ink leading-tight">
+              Permanently delete {books.length} {books.length === 1 ? 'book' : 'books'}?
             </div>
-            <div className="min-w-0 flex-1">
-              <div className="font-serif text-[14px] text-ink truncate leading-tight">{b.title}</div>
-              <div className="text-[11.5px] text-ink/65 mt-0.5 inline-flex items-center gap-1.5">
-                <IconFolder size={11}/> {b.subfolder} · {fmtSize(b.fileSizeKb)}
+            <div className="text-[13px] text-ink/70 mt-1.5">
+              Frees <span className="text-ink font-medium">{fmtSize(totalKb)}</span>. Files and database records are removed for every reader. There is no undo.
+            </div>
+          </div>
+        </div>
+
+        <ul className="mt-5 bg-bg rounded-lg border border-ink/15 divide-y divide-ink/10 max-h-[200px] overflow-y-auto">
+          {previews.map(b => (
+            <li key={b.id} className="flex items-center gap-3 px-3 py-2">
+              <div className="w-7 h-[42px] rounded-[2px] overflow-hidden bg-ink/10 shrink-0">
+                <img src={b.cover} alt="" className="w-full h-full object-cover"/>
               </div>
-            </div>
-          </li>
-        ))}
-        {more > 0 && (
-          <li className="px-3 py-2 text-[12px] text-ink/65 text-center">… and {more} more</li>
-        )}
-      </ul>
+              <div className="min-w-0 flex-1">
+                <div className="font-serif text-[14px] text-ink truncate leading-tight">{b.title}</div>
+                <div className="text-[11.5px] text-ink/65 mt-0.5 inline-flex items-center gap-1.5">
+                  <IconFolder size={11}/> {b.subfolder} · {fmtSize(b.fileSizeKb)}
+                </div>
+              </div>
+            </li>
+          ))}
+          {more > 0 && (
+            <li className="px-3 py-2 text-[12px] text-ink/65 text-center">… and {more} more</li>
+          )}
+        </ul>
 
-      <div className="mt-4">
-        <label className="block text-[11.5px] uppercase tracking-wider text-ink/75 mb-1.5">
-          Type <span className="font-mono text-crimson">DELETE</span> to confirm
-        </label>
-        <Input
-          value={confirmText}
-          onChange={(e) => setConfirmText(e.target.value)}
-          placeholder="DELETE"
-          accent="admin"
-          autoFocus
-        />
-      </div>
+        <div className="mt-4">
+          <label className="block text-[11.5px] uppercase tracking-wider text-ink/75 mb-1.5">
+            Type <span className="font-mono text-crimson">DELETE</span> to confirm
+          </label>
+          <Input
+            value={confirmText}
+            onChange={(e) => setConfirmText(e.target.value)}
+            placeholder="DELETE"
+            accent="admin"
+            autoFocus
+          />
+        </div>
 
-      <div className="mt-5 flex items-center justify-end gap-2">
-        <Button variant="ghost" onClick={onClose}>Cancel</Button>
-        <button
-          onClick={() => matches && onConfirm(books)}
-          disabled={!matches}
-          className="h-9 px-4 rounded-lg text-[13px] font-medium bg-crimson text-white inline-flex items-center gap-2 hover:brightness-110 transition disabled:opacity-40 disabled:cursor-not-allowed">
-          <IconTrash size={14}/> Permanently delete {books.length}
-        </button>
-      </div>
+        <div className="mt-5 flex items-center justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+          <button
+            type="submit"
+            disabled={!matches}
+            className="h-9 px-4 rounded-lg text-[13px] font-medium bg-crimson text-white inline-flex items-center gap-2 hover:brightness-110 transition disabled:opacity-40 disabled:cursor-not-allowed">
+            <IconTrash size={14}/> Permanently delete {books.length}
+          </button>
+        </div>
+      </form>
     </Modal>
   );
 }

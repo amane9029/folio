@@ -2,6 +2,138 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 
+type FloatingPage = {
+  baseX: number;
+  y: number;
+  width: number;
+  height: number;
+  speed: number;
+  driftAmplitude: number;
+  driftFrequency: number;
+  driftPhase: number;
+  rotationMax: number;
+  rotationFrequency: number;
+  rotationPhase: number;
+  age: number;
+  fillOpacity: number;
+  strokeOpacity: number;
+};
+
+const FloatingBookPagesCanvas = () => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const pagesRef = useRef<FloatingPage[]>([]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const hero = canvas.parentElement as HTMLElement | null;
+    if (!hero) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let width = 0;
+    let height = 0;
+    let animationFrameId = 0;
+
+    const randomBetween = (min: number, max: number) => min + Math.random() * (max - min);
+
+    const createPage = (spawnBelow = true): FloatingPage => {
+      const pageWidth = randomBetween(18, 35);
+      const pageHeight = pageWidth / 0.7;
+      return {
+        baseX: Math.random() * canvas.width,
+        y: spawnBelow ? randomBetween(canvas.height, canvas.height + canvas.height * 0.6) : Math.random() * canvas.height,
+        width: pageWidth,
+        height: pageHeight,
+        speed: randomBetween(0.4, 1.0),
+        driftAmplitude: randomBetween(15, 25),
+        driftFrequency: randomBetween(0.01, 0.02),
+        driftPhase: randomBetween(0, Math.PI * 2),
+        rotationMax: randomBetween(4, 8) * (Math.PI / 180),
+        rotationFrequency: randomBetween(0.01, 0.02),
+        rotationPhase: randomBetween(0, Math.PI * 2),
+        age: Math.random() * 300,
+        fillOpacity: randomBetween(0.04, 0.09),
+        strokeOpacity: randomBetween(0.08, 0.12),
+      };
+    };
+
+    const initPages = () => {
+      const count = Math.floor(randomBetween(12, 19));
+      pagesRef.current = Array.from({ length: count }, () => createPage(true));
+    };
+
+    const resize = () => {
+      canvas.width = Math.max(hero.offsetWidth, 1);
+      canvas.height = Math.max(hero.offsetHeight, 1);
+      width = canvas.width;
+      height = canvas.height;
+      initPages();
+    };
+
+    const resetPage = (page: FloatingPage) => {
+      const next = createPage(true);
+      page.baseX = next.baseX;
+      page.y = next.y;
+      page.width = next.width;
+      page.height = next.height;
+      page.speed = next.speed;
+      page.driftAmplitude = next.driftAmplitude;
+      page.driftFrequency = next.driftFrequency;
+      page.driftPhase = next.driftPhase;
+      page.rotationMax = next.rotationMax;
+      page.rotationFrequency = next.rotationFrequency;
+      page.rotationPhase = next.rotationPhase;
+      page.age = next.age;
+      page.fillOpacity = next.fillOpacity;
+      page.strokeOpacity = next.strokeOpacity;
+    };
+
+    const render = () => {
+      ctx.clearRect(0, 0, width, height);
+
+      for (let i = 0; i < pagesRef.current.length; i++) {
+        const page = pagesRef.current[i];
+        page.age += 1;
+        page.y -= page.speed;
+
+        const x = page.baseX + Math.sin(page.age * page.driftFrequency + page.driftPhase) * page.driftAmplitude;
+        const rotation = Math.sin(page.age * page.rotationFrequency + page.rotationPhase) * page.rotationMax;
+
+        if (page.y + page.height < 0) {
+          resetPage(page);
+          continue;
+        }
+
+        ctx.save();
+        ctx.translate(x, page.y);
+        ctx.rotate(rotation);
+        ctx.fillStyle = `rgba(255, 255, 255, ${page.fillOpacity})`;
+        ctx.strokeStyle = `rgba(255, 255, 255, ${page.strokeOpacity})`;
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.rect(-page.width / 2, -page.height / 2, page.width, page.height);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      animationFrameId = requestAnimationFrame(render);
+    };
+
+    window.addEventListener('resize', resize);
+    resize();
+    render();
+
+    return () => {
+      window.removeEventListener('resize', resize);
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, []);
+
+  return <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full pointer-events-none z-0" />;
+};
+
 // --- Interactive Trail Grid Component ---
 const InteractiveGrid = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -137,7 +269,7 @@ const InteractiveGrid = () => {
   return (
     <canvas 
       ref={canvasRef} 
-      className="fixed inset-0 pointer-events-none z-0" 
+      className="fixed inset-0 pointer-events-none z-[1]" 
     />
   );
 };
@@ -193,16 +325,17 @@ export default function LandingPage() {
       </header>
 
       {/* ─── Hero ─── */}
-      <section className="relative max-w-[1200px] mx-auto px-6 pt-40 pb-20 md:pt-52 md:pb-32 flex flex-col items-center text-center z-10">
-        <h1 className="font-sans text-[52px] md:text-[84px] font-extrabold leading-[1.05] tracking-tight max-w-4xl text-white animate-slide-up pointer-events-none">
+      <section className="relative max-w-[1200px] mx-auto px-6 pt-40 pb-20 md:pt-52 md:pb-32 flex flex-col items-center text-center z-10 overflow-hidden">
+        <FloatingBookPagesCanvas />
+        <h1 className="relative z-10 font-sans text-[52px] md:text-[84px] font-extrabold leading-[1.05] tracking-tight max-w-4xl text-white animate-slide-up pointer-events-none">
           Your digital bookshelf,<br /> reimagined.
         </h1>
 
-        <p className="mt-8 text-[18px] md:text-[22px] text-white/50 leading-[1.6] max-w-2xl font-light animate-slide-up pointer-events-none" style={{ animationDelay: '100ms' }}>
+        <p className="relative z-10 mt-8 text-[18px] md:text-[22px] text-white/50 leading-[1.6] max-w-2xl font-light animate-slide-up pointer-events-none" style={{ animationDelay: '100ms' }}>
           Folio is a private, elegant archive for your digital books. Upload EPUBs, organize with ease, and access your collection from any device with a breathtaking interface.
         </p>
 
-        <div className="mt-12 flex flex-col sm:flex-row items-center gap-5 animate-slide-up" style={{ animationDelay: '200ms' }}>
+        <div className="relative z-10 mt-12 flex flex-col sm:flex-row items-center gap-5 animate-slide-up" style={{ animationDelay: '200ms' }}>
           <button
             onClick={() => router.push('/register')}
             className="group relative px-8 py-4 rounded-full bg-white text-black text-[16px] font-bold hover:scale-105 transition-all duration-300 shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:shadow-[0_0_50px_rgba(255,255,255,0.4)] cursor-pointer"
