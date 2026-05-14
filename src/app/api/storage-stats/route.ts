@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { insforge } from '@/lib/insforge';
+import { insforgeAdmin } from '@/lib/insforge';
 
 export async function GET() {
   try {
     // Call the Postgres function via SDK RPC
-    const { data, error } = await insforge.database
+    const { data, error } = await insforgeAdmin.database
       .rpc('get_storage_stats');
 
     if (error) {

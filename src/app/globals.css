@@ -56,3 +56,105 @@ button:disabled {
 .drawer-in { animation: drawer-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 .fade-in { animation: fade-in 0.2s ease-out forwards; }
 .modal-in { animation: modal-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+@keyframes folio-glow-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.85; }
+  50% { transform: translate3d(8px, -10px, 0) scale(1.06); opacity: 1; }
+}
+
+@keyframes folio-card-float-slow {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -10px, 0); }
+}
+
+@keyframes folio-card-float-fast {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -14px, 0); }
+}
+
+@keyframes folio-light-pulse {
+  0%, 100% { opacity: 0.55; filter: blur(0px); }
+  50% { opacity: 0.95; filter: blur(1px); }
+}
+
+@keyframes folio-scan-line {
+  0% { transform: translateX(-14px); opacity: 0; }
+  20% { opacity: 0.6; }
+  80% { opacity: 0.45; }
+  100% { transform: translateX(14px); opacity: 0; }
+}
+
+.folio-glow-drift { animation: folio-glow-drift 8s ease-in-out infinite; }
+.folio-glow-drift-delayed { animation: folio-glow-drift 10s ease-in-out infinite 1.6s; }
+.folio-card-float-slow { animation: folio-card-float-slow 7.5s ease-in-out infinite; }
+.folio-card-float-fast { animation: folio-card-float-fast 6s ease-in-out infinite 0.9s; }
+.folio-light-pulse { animation: folio-light-pulse 6.5s ease-in-out infinite; }
+.folio-scan-line { animation: folio-scan-line 4.8s ease-in-out infinite; }
+
+@keyframes folio-book-float {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -8px, 0); }
+}
+
+@keyframes folio-book-aura {
+  0%, 100% { opacity: 0.55; transform: scale(0.98); }
+  50% { opacity: 0.92; transform: scale(1.04); }
+}
+
+@keyframes folio-book-page-left {
+  0%, 100% { transform: perspective(700px) rotateY(20deg) rotateZ(-9deg); }
+  50% { transform: perspective(700px) rotateY(14deg) rotateZ(-7deg); }
+}
+
+@keyframes folio-book-page-right {
+  0%, 100% { transform: perspective(700px) rotateY(-20deg) rotateZ(9deg); }
+  50% { transform: perspective(700px) rotateY(-14deg) rotateZ(7deg); }
+}
+
+@keyframes folio-page-turn-loop {
+  0% { transform: perspective(900px) rotateY(8deg); opacity: 0; }
+  8% { opacity: 0.92; }
+  35% { transform: perspective(900px) rotateY(-52deg); opacity: 0.88; }
+  58% { transform: perspective(900px) rotateY(-146deg); opacity: 0.66; }
+  72% { transform: perspective(900px) rotateY(-170deg); opacity: 0.28; }
+  73% { transform: perspective(900px) rotateY(8deg); opacity: 0; }
+  100% { transform: perspective(900px) rotateY(8deg); opacity: 0; }
+}
+
+@keyframes folio-book-spark {
+  0% { transform: translateY(0); opacity: 0; }
+  25% { opacity: 0.7; }
+  100% { transform: translateY(-20px); opacity: 0; }
+}
+
+.folio-book-float { animation: folio-book-float 4.8s ease-in-out infinite; }
+.folio-book-aura { animation: folio-book-aura 4s ease-in-out infinite; }
+.folio-book-page-left { transform: none; }
+.folio-book-page-right { transform: none; }
+.folio-page-turn-1 { animation: folio-page-turn-loop 2.4s linear infinite; }
+.folio-page-turn-2 { animation: folio-page-turn-loop 2.4s linear infinite 0.8s; }
+.folio-page-turn-3 { animation: folio-page-turn-loop 2.4s linear infinite 1.6s; }
+.folio-book-spark-1 { animation: folio-book-spark 2.2s ease-out infinite; }
+.folio-book-spark-2 { animation: folio-book-spark 2s ease-out infinite 0.8s; }
+.folio-book-spark-3 { animation: folio-book-spark 1.8s ease-out infinite 0.3s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .folio-glow-drift,
+  .folio-glow-drift-delayed,
+  .folio-card-float-slow,
+  .folio-card-float-fast,
+  .folio-light-pulse,
+  .folio-scan-line,
+  .folio-book-float,
+  .folio-book-aura,
+  .folio-book-page-left,
+  .folio-book-page-right,
+  .folio-page-turn-1,
+  .folio-page-turn-2,
+  .folio-page-turn-3,
+  .folio-book-spark-1,
+  .folio-book-spark-2,
+  .folio-book-spark-3 {
+    animation: none;
+  }
+}

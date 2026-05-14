@@ -194,14 +194,6 @@ export default function LandingPage() {
 
       {/* ─── Hero ─── */}
       <section className="relative max-w-[1200px] mx-auto px-6 pt-40 pb-20 md:pt-52 md:pb-32 flex flex-col items-center text-center z-10">
-        <div className="inline-flex items-center gap-2 bg-white/[0.03] border border-white/10 rounded-full px-4 py-1.5 text-[13px] font-medium tracking-wide text-white/70 mb-8 backdrop-blur-sm animate-fade-in">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white/60 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
-          </span>
-          Next-Generation Library Manager
-        </div>
-
         <h1 className="font-sans text-[52px] md:text-[84px] font-extrabold leading-[1.05] tracking-tight max-w-4xl text-white animate-slide-up pointer-events-none">
           Your digital bookshelf,<br /> reimagined.
         </h1>
