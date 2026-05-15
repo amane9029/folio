@@ -16,8 +16,9 @@
   <img src="https://img.shields.io/badge/Next.js-16-black" alt="Next.js"/>
   <img src="https://img.shields.io/badge/TypeScript-Ready-3178C6" alt="TypeScript"/>
   <img src="https://img.shields.io/badge/Tailwind-CSS-38BDF8" alt="Tailwind"/>
+<a href="https://folio.amanedev.me/" target="_blank">
   <img src="https://img.shields.io/badge/Website-Live-success" alt="Website"/>
-</a>
+</a></a>
 </p>
 
 ---
