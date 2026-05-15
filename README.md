@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  Invite-only access • EPUB ingestion • Metadata extraction • AI-assisted translation • Role-based dashboards
+  • EPUB ingestion • Metadata extraction • AI-assisted translation • Role-based dashboards
 </p>
 
 <p align="center">
@@ -27,7 +27,7 @@
 
 Folio is an internal EPUB library manager built for private team and studio workflows.
 
-It provides secure invite-only access for readers and administrators, enabling EPUB upload, metadata extraction, cover parsing, AI-assisted translation, and clean role-based library management.
+It provides secure authentication for readers and administrators, enabling EPUB upload, metadata extraction, cover parsing, AI-assisted translation, and clean role-based library management.
 
 ---
 
