@@ -328,11 +328,11 @@ export default function LandingPage() {
       <section className="relative max-w-[1200px] mx-auto px-6 pt-40 pb-20 md:pt-52 md:pb-32 flex flex-col items-center text-center z-10 overflow-hidden">
         <FloatingBookPagesCanvas />
         <h1 className="relative z-10 font-sans text-[52px] md:text-[84px] font-extrabold leading-[1.05] tracking-tight max-w-4xl text-white animate-slide-up pointer-events-none">
-          Your digital bookshelf,<br /> reimagined.
+          Your EPUB archive,<br /> organized instantly.
         </h1>
 
         <p className="relative z-10 mt-8 text-[18px] md:text-[22px] text-white/50 leading-[1.6] max-w-2xl font-light animate-slide-up pointer-events-none" style={{ animationDelay: '100ms' }}>
-          Folio is a private, elegant archive for your digital books. Upload EPUBs, organize with ease, and access your collection from any device with a breathtaking interface.
+          Folio recognizes titles, extracts cover art, and turns large EPUB collections into a clean, searchable private library.
         </p>
 
         <div className="relative z-10 mt-12 flex flex-col sm:flex-row items-center gap-5 animate-slide-up" style={{ animationDelay: '200ms' }}>
