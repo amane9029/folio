@@ -1,7 +1,7 @@
 # Folio
 
 <p align="center">
-  <img src="./public/readme/folio_main_logo.jpeg" alt="Folio" width="720" />
+  <img src="./public/readme/folio_main_logo.jpg" alt="Folio" width="720" />
 </p>
 
 <p align="center">
