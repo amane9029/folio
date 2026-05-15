@@ -448,7 +448,7 @@ export function LoginPage() {
                       type="email"
                       value={email}
                       onChange={(event) => setEmail(event.target.value)}
-                      placeholder="admin@folio.app"
+                      placeholder="olivia.parker@example.com"
                       autoComplete="email"
                         className="h-11 w-full rounded-xl border border-white/20 bg-[#0f0f0f]/90 px-4 text-[15px] text-white placeholder:text-white/35 outline-none transition focus:border-white/35 focus:bg-[#141414]"
                     />
@@ -648,7 +648,7 @@ export function RegisterPage() {
                       type="email"
                       value={email}
                       onChange={(event) => setEmail(event.target.value)}
-                      placeholder="name@example.com"
+                      placeholder="olivia.parker@example.com"
                       autoComplete="email"
                       className="h-11 w-full rounded-xl border border-white/20 bg-[#0f0f0f]/90 px-4 text-[15px] text-white placeholder:text-white/35 outline-none transition focus:border-white/35 focus:bg-[#141414]"
                     />
@@ -968,7 +968,7 @@ export function ForgotPasswordPage() {
             type="email"
             value={email}
             onChange={setEmail}
-            placeholder="name@example.com"
+            placeholder="olivia.parker@example.com"
             autoComplete="email"
           />
           <ErrorCard message={error} />

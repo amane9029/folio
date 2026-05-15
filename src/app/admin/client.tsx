@@ -113,7 +113,7 @@ export default function AdminPageClient({ initialUser, initialBooks }) {
                 <span className="absolute left-0 right-0 -bottom-px h-0.5 bg-white" />
               </button>
             </nav>
-            <div className="hidden sm:block">
+            <div className="block">
               <AvatarMenu user={user} onLogout={onLogout} accent="admin" />
             </div>
           </div>

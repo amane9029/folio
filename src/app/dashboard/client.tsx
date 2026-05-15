@@ -614,17 +614,9 @@ function UserDashboard({ user, books, setBooks, pushToast, onLogout }) {
                 <span className="font-serif font-bold text-[22px] tracking-tight text-white">Folio</span>
               </div>
             </div>
-            <div className="hidden sm:block">
+            <div className="block">
               <AvatarMenu user={user} onLogout={onLogout} accent="user" />
             </div>
-            <button
-              onClick={onLogout}
-              className="sm:hidden h-9 w-9 rounded-full border border-white/10 bg-white/[0.04] text-white/70 hover:text-white hover:bg-white/[0.08] transition grid place-items-center"
-              aria-label="Sign out"
-              title="Sign out"
-            >
-              <IconLogout size={16} />
-            </button>
           </div>
 
           <div className="relative min-h-[calc(100vh-3.5rem)] p-6 sm:p-8 md:p-12">
