@@ -4,7 +4,6 @@ import Link from 'next/link';
 import type { ButtonHTMLAttributes, FormEvent, InputHTMLAttributes, ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button } from '@/components/shared';
 import {
   IconArrow,
   IconClock,
@@ -218,13 +217,12 @@ export function SuccessCard({ message }: { message: string | null }) {
 export function AuthPrimaryButton(props: ButtonHTMLAttributes<HTMLButtonElement>) {
   const { className = '', children, ...rest } = props;
   return (
-    <Button
-      size="lg"
-      className={`h-[46px] w-full rounded-[12px] bg-[#161616] text-white text-[14px] font-semibold shadow-[0_0_18px_rgba(0,0,0,0.18)] hover:bg-[#1d1d1d] disabled:opacity-45 ${className}`}
+    <button
+      className={`h-12 w-full rounded-xl border border-white/28 bg-gradient-to-r from-[#dcdcdc] via-[#f3f3f3] to-[#cfcfcf] text-[17px] font-semibold text-[#050505] shadow-[0_8px_22px_rgba(255,255,255,0.18)] transition hover:brightness-105 disabled:opacity-60 ${className}`}
       {...rest}
     >
       {children}
-    </Button>
+    </button>
   );
 }
 

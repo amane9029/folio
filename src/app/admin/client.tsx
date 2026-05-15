@@ -29,6 +29,28 @@ export default function AdminPageClient({ initialUser, initialBooks }) {
   useEffect(() => {
     setEvents(loadAuditEvents());
   }, []);
+
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key) {
+        setEvents(loadAuditEvents());
+      }
+    };
+
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
+  useEffect(() => {
+    if (!user?.email) return;
+
+    const sessionKey = `folio-audit-login:${user.email}:admin`;
+    if (window.sessionStorage.getItem(sessionKey)) return;
+
+    const next = appendAuditEvent('login', user.email, 'Admin panel', { role: 'admin' });
+    setEvents(next);
+    window.sessionStorage.setItem(sessionKey, '1');
+  }, [user?.email]);
   const onLogout = async () => {
     try {
       await insforge.auth.signOut();
@@ -743,7 +765,7 @@ function BulkDeleteModal({ books, onClose, onConfirm }){
   useEffect(() => { if (!open) setConfirmText(''); }, [open]);
 
   if (!books) return <Modal open={false} onClose={onClose}/>;
-  const matches = confirmText === 'DELETE';
+  const matches = confirmText.trim().toUpperCase() === 'DELETE';
   const totalKb = books.reduce((s, b) => s + b.fileSizeKb, 0);
   const previews = books.slice(0, 5);
   const more = books.length - previews.length;
@@ -798,6 +820,12 @@ function BulkDeleteModal({ books, onClose, onConfirm }){
           <Input
             value={confirmText}
             onChange={(e) => setConfirmText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && matches) {
+                e.preventDefault();
+                onConfirm(books);
+              }
+            }}
             placeholder="DELETE"
             accent="admin"
             autoFocus

@@ -96,6 +96,15 @@ export default function DashboardClient({ initialBooks }: { initialBooks: any[] 
             name,
             initials,
           });
+
+          const sessionKey = `folio-audit-login:${email}:${data.role || "user"}`;
+          if (!window.sessionStorage.getItem(sessionKey)) {
+            appendAuditEvent("login", email || "unknown", data.role === "admin" ? "Admin panel" : "Library", {
+              role: data.role || "user",
+            });
+            window.sessionStorage.setItem(sessionKey, "1");
+          }
+
           setAuthReady(true);
         }
       } catch {}
@@ -483,6 +492,10 @@ function UserDashboard({ user, books, setBooks, pushToast, onLogout }) {
           };
 
           setBooks((prev) => [mapped, ...prev]);
+          appendAuditEvent("upload", user?.email || "unknown", mapped.title, {
+            folder: mapped.subfolder,
+            size: mapped.fileSizeKb,
+          });
           updateUpload(item.id, { state: "done" });
         } catch (err) {
           console.error("Upload error:", err);

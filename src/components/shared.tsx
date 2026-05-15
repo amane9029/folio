@@ -262,6 +262,11 @@ export function DeleteBookModal({ book, onClose, onConfirm, accent = 'user' }: a
       <Input
         value={typed}
         onChange={(e: any) => setTyped(e.target.value)}
+        onKeyDown={(event: any) => {
+          if (event.key === 'Enter' && armed) {
+            handleSubmit(event);
+          }
+        }}
         placeholder="DELETE"
         accent={accent}
         autoFocus
