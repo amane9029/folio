@@ -62,7 +62,6 @@ It provides secure invite-only access for readers and administrators, enabling E
 ## Features
 
 ### Authentication & Access
-- Invite-only onboarding
 - Email/password authentication
 - Google OAuth login
 - Email verification
