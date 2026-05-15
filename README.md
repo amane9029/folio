@@ -1,41 +1,139 @@
 # Folio
 
-Folio is an internal EPUB library manager built for teams and studios. It provides invite-only access, role-based dashboards, EPUB upload and metadata extraction, AI-assisted translation, and a compact authentication flow for readers and administrators.
+<p align="center">
+  <img src="./public/readme/folio_main_logo.jpeg" alt="Folio" width="720" />
+</p>
+
+<p align="center">
+  <strong>Private EPUB library management for teams and studios.</strong>
+</p>
+
+<p align="center">
+  Invite-only access • EPUB ingestion • Metadata extraction • AI-assisted translation • Role-based dashboards
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Next.js-16-black" alt="Next.js"/>
+  <img src="https://img.shields.io/badge/TypeScript-Ready-3178C6" alt="TypeScript"/>
+  <img src="https://img.shields.io/badge/Tailwind-CSS-38BDF8" alt="Tailwind"/>
+  <img src="https://img.shields.io/badge/Status-Active-success" alt="Status"/>
+</p>
+
+---
+
+## Overview
+
+Folio is an internal EPUB library manager built for private team and studio workflows.
+
+It provides secure invite-only access for readers and administrators, enabling EPUB upload, metadata extraction, cover parsing, AI-assisted translation, and clean role-based library management.
+
+---
+
+## Screenshots
+
+### Landing Experience
+
+<p align="center">
+  <img src="./public/readme/main_page.png" alt="Folio Landing Page" width="100%" />
+</p>
+
+### Authentication Experience
+
+<p align="center">
+  <img src="./public/readme/login_page.png" alt="Folio Login Page" width="100%" />
+</p>
+
+### EPUB Upload Flow
+
+<p align="center">
+  <img src="./public/readme/upload_page.png" alt="Folio Upload Flow" width="85%" />
+</p>
+
+### Reader Dashboard
+
+<p align="center">
+  <img src="./public/readme/user_dashboard.png" alt="Folio Reader Dashboard" width="100%" />
+</p>
+
+---
 
 ## Features
-- Invite-only authentication with email/password and Google OAuth
-- Email verification and forgot-password recovery
-- Reader dashboard for personal EPUB uploads and library browsing
-- Administrator dashboard for shared-library visibility and invite management
-- EPUB metadata and cover extraction with fallback handling
-- AI translation for non-English titles
-- Storage usage reporting for uploaded covers
 
-## Current Product Flow
-- Users enter the authentication experience and continue through login, registration, verification, or password recovery.
-- Readers are redirected to `/dashboard` after sign-in.
-- Administrators are redirected to `/admin` after sign-in.
-- Readers can upload EPUBs, browse their own books, inspect details, translate titles, and delete owned books.
-- Administrators can view the shared library, delete any book, send invites, and review the frontend audit log.
+### Authentication & Access
+- Invite-only onboarding
+- Email/password authentication
+- Google OAuth login
+- Email verification
+- Forgot-password recovery
+- Role-based access control
+
+### Reader Experience
+- Personal EPUB uploads
+- Folder-based batch imports
+- EPUB metadata extraction
+- Cover image extraction
+- Library browsing
+- Book detail inspection
+- AI-assisted translation for non-English titles
+- Delete owned books
+
+### Administrator Tools
+- Shared library visibility
+- Delete any uploaded book
+- Invite management
+- Frontend activity audit review
+
+### Infrastructure
+- Row Level Security protection
+- Hardened backend RPC access
+- Storage usage reporting
+- Production-ready deployment structure
+
+---
+
+## User Flow
+
+### Reader
+1. Register or sign in
+2. Verify account
+3. Enter dashboard
+4. Upload EPUB files or folders
+5. Browse personal collection
+6. View extracted metadata and cover art
+7. Translate titles when needed
+8. Manage uploaded books
+
+### Administrator
+1. Sign in with admin access
+2. Enter admin dashboard
+3. Review shared library
+4. Manage uploaded content
+5. Send invites
+6. Review operational activity logs
+
+---
 
 ## Tech Stack
-- **Framework:** Next.js 16 App Router
+
+- **Frontend:** Next.js 16 App Router
 - **Language:** TypeScript
 - **Styling:** Tailwind CSS
-- **Backend:** InsForge for authentication, database, storage, and AI
-- **EPUB Parsing:** JSZip
+- **Backend:** InsForge
+- **Authentication:** InsForge Auth
+- **Database:** InsForge Database
+- **Storage:** InsForge Storage
+- **AI Services:** InsForge AI
+- **EPUB Processing:** JSZip
 
-## Key File Paths
+---
+
+## Project Structure
 
 ### Frontend
-- `src/components/auth-ui.tsx`  
-  Authentication pages and shared auth UI
-- `src/app/dashboard/client.tsx`  
-  Reader dashboard
-- `src/app/admin/client.tsx`  
-  Administrator dashboard
-- `src/components/shared.tsx`  
-  Shared modals, buttons, and delete-confirmation UI
+- `src/components/auth-ui.tsx` — Authentication experience
+- `src/app/dashboard/client.tsx` — Reader dashboard
+- `src/app/admin/client.tsx` — Administrator dashboard
+- `src/components/shared.tsx` — Shared UI components
 
 ### Backend Routes
 - `src/app/api/auth/login/route.ts`
@@ -48,15 +146,19 @@ Folio is an internal EPUB library manager built for teams and studios. It provid
 - `src/app/api/books/route.ts`
 - `src/app/api/storage-stats/route.ts`
 
+---
+
 ## Setup
 
-### 1. Install Dependencies
+### Install Dependencies
+
 ```bash
 npm install
 ```
 
-### 2. Configure Environment Variables
-Create `.env.local` with your InsForge values:
+### Environment Variables
+
+Create `.env.local`
 
 ```env
 NEXT_PUBLIC_INSFORGE_URL=https://your-app.region.insforge.app
@@ -64,19 +166,23 @@ NEXT_PUBLIC_INSFORGE_ANON_KEY=your-anon-key
 INSFORGE_SERVICE_KEY=your-server-only-key
 ```
 
-### 3. Start Development
+### Start Development
+
 ```bash
 npm run dev
 ```
 
-### 4. Build for Production
+### Production Build
+
 ```bash
 npm run build
 ```
 
-## Hosting Notes
+---
 
-### Required for Hosting
+## Deployment Notes
+
+### Required
 - `src/`
 - `public/`
 - `package.json`
@@ -86,21 +192,35 @@ npm run build
 - `tsconfig.json`
 - Production environment variables
 
-### Not Required as Deployment Artifacts
+### Not Required
 - `.next/`
 - `node_modules/`
 - `scratch/`
-- Local report files such as `testsprite-mcp-test-report.md`
-- Local environment files such as `.env.local`
+- `.env.local`
+- `testsprite-mcp-test-report.md`
+- `prd.md`
+- `abstract.md`
 
-### Documentation and Workflow Files
-Repository helper files such as `prd.md`, `abstract.md`, and similar documentation files are not runtime hosting requirements.
+---
 
-## Notes
-- `public.users` is protected with RLS for backend-admin access patterns.
-- Sensitive RPCs have been hardened to avoid public execution.
-- The current audit log is frontend and local-storage based. It is useful for UI activity review, but it is not a centralized backend audit system.
+## Security Notes
+
+- `public.users` is protected with Row Level Security
+- Sensitive backend RPCs are hardened
+- Service credentials remain server-side only
+- Frontend audit logging is local-only and not centralized
+
+---
 
 ## Known Follow-Ups
-- Replace the frontend audit log with a backend-backed audit trail if cross-user or durable audit history is required.
-- Review legacy schema fields such as `uploaded_by` if the data model should be simplified further.
+
+- Replace frontend audit logs with backend audit infrastructure
+- Expand admin observability
+- Centralize operational event logging
+- Simplify legacy schema fields like `uploaded_by`
+
+---
+
+<p align="center">
+  Built for private EPUB workflows.
+</p>
