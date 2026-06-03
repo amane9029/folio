@@ -3,12 +3,22 @@ import { insforgeAdmin } from '@/lib/insforge';
 import { createUserScopedClient, getTokenFromRequest } from '@/lib/server-auth';
 
 function extractObjectKey(coverUrl: string) {
-  const parts = coverUrl.split('/objects/');
-  if (parts.length < 2) {
-    return null;
-  }
+  try {
+    const url = new URL(coverUrl);
+    const match = url.pathname.match(/\/objects\/(.+)$/);
+    if (!match) {
+      return null;
+    }
 
-  return decodeURIComponent(parts[1]);
+    return decodeURIComponent(match[1]);
+  } catch {
+    const parts = coverUrl.split('/objects/');
+    if (parts.length < 2) {
+      return null;
+    }
+
+    return decodeURIComponent(parts[1].split('?')[0]);
+  }
 }
 
 export async function GET(

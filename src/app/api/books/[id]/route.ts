@@ -27,9 +27,10 @@ export async function DELETE(
 
     if (book.cover_url) {
       try {
-        const urlParts = book.cover_url.split('/objects/');
-        if (urlParts.length > 1) {
-          const objectKey = decodeURIComponent(urlParts[1]);
+        const objectUrl = new URL(book.cover_url);
+        const match = objectUrl.pathname.match(/\/objects\/(.+)$/);
+        if (match?.[1]) {
+          const objectKey = decodeURIComponent(match[1]);
           await insforgeAdmin.storage.from('covers').remove(objectKey);
         }
       } catch (storageErr) {

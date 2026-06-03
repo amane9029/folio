@@ -192,14 +192,7 @@ npm run build
 - `tsconfig.json`
 - Production environment variables
 
-### Not Required
-- `.next/`
-- `node_modules/`
-- `scratch/`
-- `.env.local`
-- `testsprite-mcp-test-report.md`
-- `prd.md`
-- `abstract.md`
+
 
 ---
 

@@ -46,8 +46,8 @@ export async function POST(request: NextRequest) {
         if (uploadError) {
           console.error('Cover upload error:', uploadError);
         } else if (uploadData) {
-          coverUrl = uploadData.url || insforgeAdmin.storage.from('covers').getPublicUrl(uploadData.key || path);
           coverKey = uploadData.key || path;
+          coverUrl = insforgeAdmin.storage.from('covers').getPublicUrl(coverKey);
         }
       } catch (storageErr) {
         console.error('Storage exception:', storageErr);

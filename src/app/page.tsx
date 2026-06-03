@@ -504,13 +504,17 @@ export default function LandingPage() {
             <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-white/5 border border-white/10">
               <img src="/main_logo.svg" alt="Folio" className="h-4 w-4 filter invert opacity-70" />
             </div>
-            <span className="text-[14px] text-white/40 font-medium">© {new Date().getFullYear()} Folio Inc.</span>
+            <span className="text-[14px] text-white/40 font-medium">&copy; {new Date().getFullYear()} Folio Inc.</span>
           </div>
           <div className="flex items-center gap-8 text-[14px] font-medium text-white/40">
-            <a href="#" className="hover:text-white transition-colors">Privacy</a>
-            <a href="#" className="hover:text-white transition-colors">Terms</a>
-            <a href="#" className="hover:text-white transition-colors">Twitter</a>
-            <a href="#" className="hover:text-white transition-colors">GitHub</a>
+            <a
+              href="https://github.com/amane9029"
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-white transition-colors"
+            >
+              GitHub
+            </a>
           </div>
         </div>
       </footer>
