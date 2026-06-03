@@ -1,7 +1,7 @@
 # Folio
 
 <p align="center">
-  <img src="./public/readme/folio_main_logo.jpeg" alt="Folio" width="720" />
+  <img src="./public/readme/folio_main_logo.png" alt="Folio" width="720" />
 </p>
 
 <p align="center">
@@ -9,14 +9,16 @@
 </p>
 
 <p align="center">
-  Invite-only access • EPUB ingestion • Metadata extraction • AI-assisted translation • Role-based dashboards
+  • EPUB ingestion • Metadata extraction • AI-assisted translation • Role-based dashboards
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Next.js-16-black" alt="Next.js"/>
   <img src="https://img.shields.io/badge/TypeScript-Ready-3178C6" alt="TypeScript"/>
   <img src="https://img.shields.io/badge/Tailwind-CSS-38BDF8" alt="Tailwind"/>
-  <img src="https://img.shields.io/badge/Status-Active-success" alt="Status"/>
+<a href="https://folio.amanedev.me/" target="_blank">
+  <img src="https://img.shields.io/badge/Website-Live-success" alt="Website"/>
+</a></a>
 </p>
 
 ---
@@ -25,7 +27,7 @@
 
 Folio is an internal EPUB library manager built for private team and studio workflows.
 
-It provides secure invite-only access for readers and administrators, enabling EPUB upload, metadata extraction, cover parsing, AI-assisted translation, and clean role-based library management.
+It provides secure authentication for readers and administrators, enabling EPUB upload, metadata extraction, cover parsing, AI-assisted translation, and clean role-based library management.
 
 ---
 
@@ -60,7 +62,6 @@ It provides secure invite-only access for readers and administrators, enabling E
 ## Features
 
 ### Authentication & Access
-- Invite-only onboarding
 - Email/password authentication
 - Google OAuth login
 - Email verification
